@@ -49,7 +49,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/insight
           <div className="overflow-x-auto">
             <table className="report w-full min-w-[620px] text-sm">
               <thead>
-                <tr><th className="text-left">Movie</th><th>Shows</th><th>Seats sold</th><th>Filled</th><th>Collected</th></tr>
+                <tr><th className="text-left">Movie</th><th>Shows</th><th>Seats sold</th><th>Filled</th><th>Rating</th><th>Collected</th></tr>
               </thead>
               <tbody>
                 {r.movies.map((m) => (
@@ -58,6 +58,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/insight
                     <td className="num">{m.shows}</td>
                     <td className="num">{m.seats_sold}</td>
                     <td className="num">{m.occupancy}%</td>
+                    <td className="num">{m.rating ? <>★ {m.rating} <span className="text-muted">({m.ratings})</span></> : <span className="text-muted">–</span>}</td>
                     <td className="num font-bold">{rupees(m.collected_paise)}</td>
                   </tr>
                 ))}
@@ -66,6 +67,29 @@ export default async function InsightsPage({ searchParams }: PageProps<"/insight
           </div>
         )}
       </section>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <BarList title="Ratings" bars={r.stars.map((b) => ({ ...b, label: `${b.label} ★` }))} caption="Customers rate the movie on their ticket after the show" />
+        <section className="card p-5">
+          <h2 className="font-bold">What people said</h2>
+          <p className="mt-0.5 text-xs text-muted">Latest comments with a rating. Names are never shown.</p>
+          {r.comments.length === 0 ? (
+            <p className="mt-4 text-sm text-muted">No comments in these dates yet.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-line">
+              {r.comments.map((x, i) => (
+                <li key={i} className="py-2.5 text-sm">
+                  <div className="flex items-center justify-between gap-3 text-xs text-muted">
+                    <span>{x.movie_title}</span>
+                    <span className="tracking-wider text-ink">{"★".repeat(x.stars)}<span className="text-line">{"★".repeat(5 - x.stars)}</span></span>
+                  </div>
+                  <p className="mt-1">{x.comment}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
 
       <h2 className="mt-8 font-bold">Audience</h2>
       <p className="mt-1 text-sm text-muted">

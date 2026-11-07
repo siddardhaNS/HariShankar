@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Booking, BookingSeat, Customer, Entry, Movie, Seat, Show, Theatre
+from app.models import Booking, BookingSeat, Customer, Entry, Movie, Rating, Seat, Show, Theatre
 from app.models.enums import BookingStatus, ShowStatus
 from app.routers.app_catalog import show_label
 
@@ -175,13 +175,25 @@ def insights(db: Session, theatre_id: uuid.UUID, start: date, end: date) -> dict
             first_here[b.customer_id] = b.created_at
     new = sum(1 for cid, at in first_here.items() if first_ever.get(cid) == at)
 
+    # Ratings from tickets in this range
+    rated = list(db.scalars(select(Rating).where(Rating.booking_id.in_([b.id for b, _ in bookings]))
+                            .order_by(Rating.created_at.desc()))) if bookings else []
+    titles = {r.show.movie_id: r.title for r in live}
+    stars: dict[str, list[int]] = defaultdict(list)
+    for x in rated:
+        stars[titles.get(x.movie_id, "")].append(x.stars)
+    comments = [{"movie_title": titles.get(x.movie_id, ""), "stars": x.stars, "comment": x.comment, "at": x.created_at}
+                for x in rated if x.comment][:12]
+
     movies = []
     for title, rs in sorted(by_movie.items(), key=lambda kv: -sum(r.seats_sold for r in kv[1])):
         cap = sum(r.seats_total for r in rs)
         sold = sum(r.seats_sold for r in rs)
         movies.append({"title": title, "shows": len(rs), "seats_sold": sold,
                        "occupancy": round(100 * sold / cap) if cap else 0,
-                       "collected_paise": sum(r.collected_paise for r in rs)})
+                       "collected_paise": sum(r.collected_paise for r in rs),
+                       "rating": round(sum(stars[title]) / len(stars[title]), 1) if stars[title] else None,
+                       "ratings": len(stars[title])})
 
     cap = sum(r.seats_total for r in live)
     sold = sum(r.seats_sold for r in live)
@@ -202,4 +214,6 @@ def insights(db: Session, theatre_id: uuid.UUID, start: date, end: date) -> dict
         "gender": _bar(["Female", "Male", "Other", "Not said"], gender),
         "age": _bar(list(dict.fromkeys(AGE.values())), age),
         "movies": movies,
+        "stars": _bar(["5", "4", "3", "2", "1"], Counter(str(x.stars) for x in rated)),
+        "comments": comments,
     }

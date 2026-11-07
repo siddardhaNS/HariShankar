@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Booking, BookingSeat, Customer, Seat, SeatClass, Show, Theatre
+from app.models import Booking, BookingSeat, Customer, Rating, Seat, SeatClass, Show, Theatre
 from app.models.enums import BookingStatus
 from app.routers.app_auth import current_customer
 from app.routers.app_catalog import show_brief
@@ -16,11 +16,14 @@ from app.schemas.app import (
     BookingStartOut,
     OrderOut,
     PriceOut,
+    RatingIn,
+    RatingOut,
     TicketSeat,
     UpiClaimIn,
 )
 from app.security import ticket_qr
 from app.services import bookings as svc
+from app.services import ratings
 
 router = APIRouter(prefix="/api/app/bookings", tags=["app bookings"])
 
@@ -54,6 +57,8 @@ def booking_out(db: Session, b: Booking) -> BookingOut:
         refund_paise=b.refund_paise,
         refund_pending=b.refund_pending,
         qr=ticket_qr(b.code) if b.status == BookingStatus.confirmed else None,
+        rating=RatingOut.model_validate(rated) if (rated := db.scalar(select(Rating).where(Rating.booking_id == b.id))) else None,
+        can_rate=ratings.can_rate(db, b, show),
         created_at=b.created_at,
         confirmed_at=b.confirmed_at,
     )
@@ -130,4 +135,24 @@ def upi_paid(booking_id: uuid.UUID, body: UpiClaimIn, customer: Customer = Depen
     if b is None or b.customer_id != customer.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
     svc.claim_upi(db, b, body.utr)
+    return booking_out(db, b)
+
+
+@router.put("/{booking_id}/rating", response_model=BookingOut)
+def rate(booking_id: uuid.UUID, body: RatingIn, customer: Customer = Depends(current_customer),
+         db: Session = Depends(get_db)):
+    """Stars for the movie, after the show. Sending again changes it."""
+    b = own_booking(db, customer, booking_id)
+    show = db.get(Show, b.show_id)
+    assert show
+    if not ratings.can_rate(db, b, show):
+        raise HTTPException(status.HTTP_409_CONFLICT, "You can rate a movie after the show, for up to 2 weeks")
+    r = db.scalar(select(Rating).where(Rating.booking_id == b.id))
+    if r is None:
+        r = Rating(theatre_id=b.theatre_id, booking_id=b.id, customer_id=customer.id, movie_id=show.movie_id,
+                   stars=body.stars, comment=body.comment.strip())
+        db.add(r)
+    else:
+        r.stars, r.comment = body.stars, body.comment.strip()
+    db.commit()
     return booking_out(db, b)

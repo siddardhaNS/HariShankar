@@ -67,7 +67,7 @@ function MovieRow({ item }: { item: MovieShows }) {
       <View style={{ flex: 1 }}>
         <T v="title">{m.title}</T>
         <T v="small" style={{ marginTop: 2 }}>
-          {[m.language, m.certificate, runtime(m.runtime_min), m.genre].filter(Boolean).join(' · ')}
+          {[m.rating ? `★ ${m.rating} (${m.rating_count})` : null, m.language, m.certificate, runtime(m.runtime_min), m.genre].filter(Boolean).join(' · ')}
         </T>
         {m.synopsis ? <T v="small" numberOfLines={2} style={{ marginTop: 6, color: c.ink2 }}>{m.synopsis}</T> : null}
         <View style={styles.pills}>
@@ -130,8 +130,14 @@ export default function HomeScreen() {
             <Poster movie={featured.movie} width={92} />
           </View>
           <View style={[styles.pills, { marginTop: 12 }]}>
-            {[featured.movie.language, featured.movie.certificate, runtime(featured.movie.runtime_min), featured.movie.genre]
-              .filter(Boolean)
+            {[
+              featured.movie.rating ? `★ ${featured.movie.rating} · ${featured.movie.rating_count} ratings` : null,
+              featured.movie.language,
+              featured.movie.certificate,
+              runtime(featured.movie.runtime_min),
+              featured.movie.genre,
+            ]
+              .filter((x): x is string => Boolean(x))
               .map((x) => <Chip key={x} label={x} style={{ backgroundColor: c.card }} />)}
           </View>
           {featured.movie.synopsis ? (

@@ -23,7 +23,7 @@ from app.schemas.app import (
     ShowTimeOut,
     TheatreOut,
 )
-from app.services import seating
+from app.services import ratings, seating
 
 router = APIRouter(prefix="/api/app", tags=["app catalog"])
 
@@ -129,8 +129,9 @@ def home(
     by_movie: dict[uuid.UUID, list[ShowTimeOut]] = {}
     for s in todays:
         by_movie.setdefault(s.movie_id, []).append(times[s.id])
+    avgs = ratings.averages(db, set(movies))
     now_showing = [
-        MovieShows(movie=MovieOut.model_validate(movies[mid]), shows=st)
+        MovieShows(movie=movie_out(movies[mid], avgs), shows=st)
         for mid, st in sorted(by_movie.items(), key=lambda kv: (-len(kv[1]), movies[kv[0]].title))
     ]
 
@@ -149,6 +150,14 @@ def home(
         now_showing=now_showing,
         coming_soon=[MovieOut.model_validate(m) for m in coming],
     )
+
+
+def movie_out(m: Movie, avgs: dict) -> MovieOut:
+    out = MovieOut.model_validate(m)
+    avg, n = avgs.get(m.id, (None, 0))
+    if n >= ratings.MIN_TO_SHOW:
+        out.rating, out.rating_count = avg, n
+    return out
 
 
 def show_brief(db: Session, show: Show) -> ShowBrief:

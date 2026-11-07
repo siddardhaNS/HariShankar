@@ -94,4 +94,5 @@ Server side: OTP codes are stored hashed, expire in 5 minutes, max 5 sends an ho
 5. ~~Gate scanner in the Android app (QR, booking ID fallback, partial entry)~~
 6. ~~Promotions: promo codes at checkout~~
 7. ~~Reports (collection, seats, refunds, GST, CSV) and Insights (show times, days, booking lead time, group size, audience, movies)~~
-8. Ratings, WhatsApp messages
+8. ~~Ratings: stars and comments on the ticket after the show; averages in the app and Insights~~
+9. WhatsApp messages

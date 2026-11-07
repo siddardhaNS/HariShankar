@@ -10,6 +10,8 @@ export type Movie = {
   synopsis: string;
   poster_url: string | null;
   release_date: string | null;
+  rating?: number | null; // average stars, once 5 or more people have rated
+  rating_count?: number;
 };
 
 export type Availability = 'available' | 'filling_fast' | 'almost_full' | 'sold_out';
@@ -102,6 +104,8 @@ export type Booking = {
   refund_paise: number;
   refund_pending: boolean;
   qr: string | null;
+  rating: { stars: number; comment: string } | null;
+  can_rate: boolean;
   created_at: string;
   confirmed_at: string | null;
 };

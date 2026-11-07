@@ -200,5 +200,7 @@ export type Insights = {
   group_size: Bar[];
   gender: Bar[];
   age: Bar[];
-  movies: { title: string; shows: number; seats_sold: number; occupancy: number; collected_paise: number }[];
+  movies: { title: string; shows: number; seats_sold: number; occupancy: number; collected_paise: number; rating: number | null; ratings: number }[];
+  stars: Bar[];
+  comments: { movie_title: string; stars: number; comment: string; at: string }[];
 };

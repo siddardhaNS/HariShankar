@@ -385,6 +385,8 @@ class MovieInsight(BaseModel):
     seats_sold: int
     occupancy: int
     collected_paise: int
+    rating: float | None
+    ratings: int
 
 
 class InsightSummary(BaseModel):
@@ -400,6 +402,13 @@ class InsightSummary(BaseModel):
     promo_discount_paise: int
 
 
+class RatingComment(BaseModel):
+    movie_title: str
+    stars: int
+    comment: str
+    at: datetime
+
+
 class InsightsOut(BaseModel):
     start: date
     end: date
@@ -411,3 +420,5 @@ class InsightsOut(BaseModel):
     gender: list[Bar]
     age: list[Bar]
     movies: list[MovieInsight]
+    stars: list[Bar]
+    comments: list[RatingComment]

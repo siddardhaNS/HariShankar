@@ -1,10 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Poster } from '@/components/Poster';
 import { Banner, Button, Card, Chip, ErrorState, Header, Loading, T } from '@/components/ui';
+import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dayName, istDateKey, payMethodLabel, rupees, time } from '@/lib/format';
 import { fonts, useColors } from '@/lib/theme';
@@ -36,6 +37,8 @@ export default function BookingScreen() {
             Your ticket is below and in My tickets.
           </Banner>
         ) : null}
+
+        {(b.can_rate || b.rating) && <RateCard b={b} onSaved={reload} />}
 
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           <View style={{ flexDirection: 'row', gap: 14, padding: 16 }}>
@@ -195,7 +198,89 @@ function Detail({ label, value, mono }: { label: string; value: string; mono?: b
   );
 }
 
+const STAR_WORDS = ['', "Didn't like it", 'It was okay', 'Good', 'Very good', 'Loved it'];
+
+/** After the show: stars for the movie, and a few words if they like. */
+function RateCard({ b, onSaved }: { b: Booking; onSaved: () => void }) {
+  const c = useColors();
+  const [stars, setStars] = useState(b.rating?.stars ?? 0);
+  const [comment, setComment] = useState(b.rating?.comment ?? '');
+  const [editing, setEditing] = useState(!b.rating);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      await api(`/api/app/bookings/${b.id}/rating`, { method: 'PUT', body: { stars, comment: comment.trim() } });
+      setEditing(false);
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing && b.rating) {
+    return (
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <T v="label">You rated {b.show.movie.title}</T>
+          <T style={{ color: c.brand, fontSize: 20, lineHeight: 26, letterSpacing: 2, marginTop: 2 }}>
+            {'★'.repeat(b.rating.stars)}{'☆'.repeat(5 - b.rating.stars)}
+          </T>
+          {b.rating.comment ? <T v="small" style={{ marginTop: 4 }}>“{b.rating.comment}”</T> : null}
+        </View>
+        {b.can_rate && (
+          <Pressable accessibilityRole="button" hitSlop={10} onPress={() => setEditing(true)}>
+            <T v="label" style={{ color: c.brand }}>Change</T>
+          </Pressable>
+        )}
+      </Card>
+    );
+  }
+
+  return (
+    <Card style={{ gap: 10 }}>
+      <T v="title">How was {b.show.movie.title}?</T>
+      <View style={{ flexDirection: 'row', gap: 6 }} accessibilityRole="radiogroup">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <Pressable
+            key={n}
+            accessibilityRole="radio"
+            accessibilityLabel={`${n} star${n > 1 ? 's' : ''}`}
+            accessibilityState={{ checked: stars === n }}
+            hitSlop={4}
+            onPress={() => setStars(n)}
+          >
+            <T style={{ fontSize: 38, lineHeight: 44, color: n <= stars ? c.brand : c.field }}>{n <= stars ? '★' : '☆'}</T>
+          </Pressable>
+        ))}
+      </View>
+      {stars > 0 && <T v="small">{STAR_WORDS[stars]}</T>}
+      {stars > 0 && (
+        <TextInput
+          value={comment}
+          onChangeText={setComment}
+          placeholder="A few words for the theatre (optional)"
+          placeholderTextColor={c.muted}
+          maxLength={300}
+          multiline
+          accessibilityLabel="Comment"
+          style={[styles.comment, { borderColor: c.field, color: c.ink, backgroundColor: c.card }]}
+        />
+      )}
+      {err && <Banner kind="error">{err}</Banner>}
+      <Button title="Send rating" onPress={save} loading={busy} disabled={stars === 0} />
+      <T v="small" style={{ fontSize: 12 }}>Only the theatre sees your words. Your name isn&apos;t shown with them.</T>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
+  comment: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, minHeight: 70, fontSize: 15, fontFamily: fonts.regular, textAlignVertical: 'top' },
   perforation: { borderTopWidth: 2, borderStyle: 'dashed', marginVertical: 18, marginHorizontal: 16 },
   detail: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 6 },
 });

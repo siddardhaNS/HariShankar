@@ -72,6 +72,8 @@ class MovieOut(BaseModel):
     synopsis: str
     poster_url: str | None
     release_date: date | None
+    rating: float | None = None  # average stars, once enough people have rated
+    rating_count: int = 0
 
 
 Availability = Literal["available", "filling_fast", "almost_full", "sold_out"]
@@ -214,6 +216,8 @@ class BookingOut(BaseModel):
     refund_paise: int
     refund_pending: bool  # direct UPI: the theatre still has to send it back
     qr: str | None  # only for confirmed tickets
+    rating: "RatingOut | None" = None
+    can_rate: bool = False  # the show is over and it can still be rated
     created_at: datetime
     confirmed_at: datetime | None
 
@@ -231,3 +235,18 @@ class PromoApplyOut(BaseModel):
     title: str
     discount_paise: int
     price: PriceOut
+
+
+class RatingIn(BaseModel):
+    stars: int = Field(ge=1, le=5)
+    comment: str = Field(default="", max_length=300)
+
+
+class RatingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    stars: int
+    comment: str
+
+
+BookingOut.model_rebuild()
