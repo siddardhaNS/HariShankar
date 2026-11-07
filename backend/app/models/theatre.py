@@ -22,6 +22,9 @@ class Theatre(IdMixin, TimestampMixin, Base):
     )
     # Booking fee per ticket, in paise (GST on it is computed at checkout)
     booking_fee_paise: Mapped[int] = mapped_column(Integer, default=2000)
+    # Direct UPI payments go to this UPI ID until a payment gateway is chosen
+    upi_id: Mapped[str | None] = mapped_column(String(60))
+    upi_name: Mapped[str | None] = mapped_column(String(60))
 
 
 class Screen(IdMixin, TimestampMixin, TheatreScoped, Base):

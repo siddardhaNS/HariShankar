@@ -26,7 +26,8 @@ class ShowStatus(str, enum.Enum):
 
 
 class BookingStatus(str, enum.Enum):
-    payment_pending = "payment_pending"  # Razorpay order created, webhook not yet received
+    payment_pending = "payment_pending"  # order created, payment not yet received
+    payment_review = "payment_review"    # direct UPI: customer gave the UPI reference, staff to check it arrived
     confirmed = "confirmed"
     failed = "failed"                    # payment failed / seat clash before charge
     refunded = "refunded"

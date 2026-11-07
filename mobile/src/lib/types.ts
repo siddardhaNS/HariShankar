@@ -49,6 +49,7 @@ export type SeatMap = {
   booking_fee_paise: number;
   gst_rate_bp: number;
   max_seats: number;
+  payment_gateway: string;
 };
 
 export type SeatGroup = { seat_ids: string[]; labels: string[]; class_name: string; total_paise: number };
@@ -65,7 +66,15 @@ export type BookingStart = {
   booking_id: string;
   code: string;
   price: Price;
-  order: { order_id: string; amount_paise: number; gateway: string; key_id: string | null };
+  order: {
+    order_id: string;
+    amount_paise: number;
+    gateway: string;
+    key_id: string | null;
+    upi_url: string | null;
+    payee_upi_id: string | null;
+    payee_name: string | null;
+  };
 };
 
 export type SeatsTakenBody = {
@@ -75,7 +84,7 @@ export type SeatsTakenBody = {
   suggestion: { seat_ids: string[]; labels: string[] };
 };
 
-export type BookingStatus = 'payment_pending' | 'confirmed' | 'failed' | 'refunded' | 'cancelled';
+export type BookingStatus = 'payment_pending' | 'payment_review' | 'confirmed' | 'failed' | 'refunded' | 'cancelled';
 
 export type Booking = {
   id: string;
@@ -87,8 +96,11 @@ export type Booking = {
   seats: { label: string; class_name: string; price_paise: number }[];
   price: Price;
   payment_method: string | null;
+  gateway: string;
+  upi_ref: string | null;
   refund_id: string | null;
   refund_paise: number;
+  refund_pending: boolean;
   qr: string | null;
   created_at: string;
   confirmed_at: string | null;

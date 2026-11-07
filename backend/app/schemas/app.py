@@ -138,6 +138,7 @@ class SeatMapOut(BaseModel):
     booking_fee_paise: int
     gst_rate_bp: int
     max_seats: int
+    payment_gateway: str  # "upi" = direct UPI only (no cards/net banking yet)
 
 
 class SeatGroupOut(BaseModel):
@@ -166,6 +167,9 @@ class OrderOut(BaseModel):
     amount_paise: int
     gateway: str
     key_id: str | None
+    upi_url: str | None = None
+    payee_upi_id: str | None = None
+    payee_name: str | None = None
 
 
 class BookingStartOut(BaseModel):
@@ -191,8 +195,11 @@ class BookingOut(BaseModel):
     seats: list[TicketSeat]
     price: PriceOut
     payment_method: str | None
+    gateway: str
+    upi_ref: str | None
     refund_id: str | None
     refund_paise: int
+    refund_pending: bool  # direct UPI: the theatre still has to send it back
     qr: str | None  # only for confirmed tickets
     created_at: datetime
     confirmed_at: datetime | None
@@ -200,3 +207,7 @@ class BookingOut(BaseModel):
 
 class DevPayIn(BaseModel):
     method: Literal["upi", "card", "netbanking"] = "upi"
+
+
+class UpiClaimIn(BaseModel):
+    utr: Annotated[str, Field(pattern=r"^\d{12}$", description="12-digit UPI reference (UTR) from the UPI app")]

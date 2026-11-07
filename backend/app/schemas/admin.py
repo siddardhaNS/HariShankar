@@ -200,6 +200,9 @@ class AdminBookingOut(BaseModel):
     refund_paise: int
     refund_id: str | None
     payment_method: str | None
+    gateway: str
+    upi_ref: str | None
+    refund_pending: bool
     seats_admitted: int
     created_at: datetime
 
@@ -229,5 +232,21 @@ class TodayOut(BaseModel):
     seats_total: int
     refunds_paise: int
     stuck_payments: int
+    payments_to_check: int
+    refunds_to_send: int
     shows: list[TodayShow]
     setup: dict[str, bool]
+    upi_id: str | None
+
+
+class ReviewIn(BaseModel):
+    received: bool
+
+
+class RefundSentIn(BaseModel):
+    ref: Annotated[str, Field(min_length=4, max_length=60)]
+
+
+class TheatrePayments(BaseModel):
+    upi_id: Annotated[str, Field(pattern=r"^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$", max_length=60)]
+    upi_name: Annotated[str, Field(min_length=2, max_length=60)]

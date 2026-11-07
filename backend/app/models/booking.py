@@ -49,6 +49,9 @@ class Booking(IdMixin, TimestampMixin, TheatreScoped, Base):
     payment_method: Mapped[str | None] = mapped_column(String(20))  # upi | card | netbanking
     refund_id: Mapped[str | None] = mapped_column(String(60))
     refund_paise: Mapped[int] = mapped_column(Integer, default=0)
+    # Direct UPI has no gateway to send refunds: staff send them by hand and mark them sent
+    refund_pending: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    upi_ref: Mapped[str | None] = mapped_column(String(30), unique=True)  # UTR the customer entered
     failure_reason: Mapped[str | None] = mapped_column(String(40))  # seat_clash | payment_failed | expired
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -101,3 +104,15 @@ class OtpCode(IdMixin, Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     consumed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class Entry(IdMixin, Base):
+    """People let in at the gate for a booking. A 4-seat booking can enter as 2 + 2."""
+
+    __tablename__ = "entries"
+
+    booking_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bookings.id"), index=True)
+    show_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("shows.id"), index=True)
+    count: Mapped[int] = mapped_column(Integer)
+    scanned_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("staff_users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     otp_ttl_minutes: int = 5
     otp_max_sends_per_hour: int = 5
     otp_max_attempts: int = 5
-    payment_gateway: str = "fake"      # fake | razorpay (decided later)
+    payment_gateway: str = "upi"       # upi (direct, no gateway) | fake (dev/tests) | razorpay later
     payment_window_minutes: int = 15   # a pending booking older than this is abandoned
     max_seats_per_booking: int = 10
     gst_rate_on_fee_bp: int = 1800     # 18% GST on the booking fee, in basis points

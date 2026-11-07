@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 TEST_DB = os.environ["TEST_DATABASE_URL"]
+os.environ["PAYMENT_GATEWAY"] = "fake"  # instant test payments; direct-UPI tests switch it per test
 
 from app.db import get_db  # noqa: E402
 from app.main import app  # noqa: E402
@@ -35,7 +36,7 @@ def clean(migrated):
     yield
     with engine.begin() as c:
         c.execute(text(
-            "TRUNCATE otp_codes, audit_logs, booking_seats, bookings, seat_blocks, show_prices, shows, movies, "
+            "TRUNCATE entries, otp_codes, audit_logs, booking_seats, bookings, seat_blocks, show_prices, shows, movies, "
             "customers, seats, seat_classes, screens, staff_users, theatres CASCADE"
         ))
 

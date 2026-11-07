@@ -14,13 +14,15 @@ import { useApi } from '@/lib/useApi';
 function splitTickets(all: Booking[]) {
   const now = Date.now();
   const ends = (b: Booking) => new Date(b.show.starts_at).getTime() + (b.show.movie.runtime_min + 15) * 60_000;
-  const upcoming = all.filter((b) => ends(b) > now && b.status === 'confirmed').reverse();
-  return { upcoming, past: all.filter((b) => !upcoming.includes(b)) };
+  const upcoming = all.filter((b) => ends(b) > now && (b.status === 'confirmed' || b.status === 'payment_review')).reverse();
+  const refunded = all.filter((b) => b.status === 'refunded' || b.status === 'cancelled');
+  return { upcoming, refunded, past: all.filter((b) => !upcoming.includes(b) && !refunded.includes(b)) };
 }
 
 function TicketRow({ b, past }: { b: Booking; past?: boolean }) {
   const c = useColors();
-  const refunded = b.status !== 'confirmed';
+  const checking = b.status === 'payment_review';
+  const refunded = b.status !== 'confirmed' && !checking;
   return (
     <Pressable
       accessibilityRole="button"
@@ -33,8 +35,12 @@ function TicketRow({ b, past }: { b: Booking; past?: boolean }) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
             <T v="label" style={{ flex: 1 }} numberOfLines={1}>{b.show.movie.title}</T>
             <Chip
-              label={refunded ? 'Refunded' : past ? 'Watched' : 'Confirmed'}
-              style={refunded ? { backgroundColor: c.brandSoft } : !past ? { backgroundColor: c.okSoft } : undefined}
+              label={checking ? 'Checking payment' : refunded ? 'Refunded' : past ? 'Watched' : 'Confirmed'}
+              style={
+                checking ? { backgroundColor: c.warnSoft }
+                  : refunded ? { backgroundColor: c.brandSoft }
+                    : !past ? { backgroundColor: c.okSoft } : undefined
+              }
             />
           </View>
           <T v="small" style={{ marginTop: 2 }}>
@@ -73,7 +79,7 @@ export default function MyTickets() {
   if (loading) return <Loading />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
 
-  const { upcoming, past } = splitTickets(data ?? []);
+  const { upcoming, refunded, past } = splitTickets(data ?? []);
 
   return (
     <ScrollView
@@ -95,6 +101,12 @@ export default function MyTickets() {
         <>
           <T v="display" style={{ marginTop: 16 }}>Already watched</T>
           {past.map((b) => <TicketRow key={b.id} b={b} past />)}
+        </>
+      )}
+      {refunded.length > 0 && (
+        <>
+          <T v="display" style={{ marginTop: 16 }}>Refunded</T>
+          {refunded.map((b) => <TicketRow key={b.id} b={b} past />)}
         </>
       )}
     </ScrollView>

@@ -197,6 +197,7 @@ def seat_map(show_id: uuid.UUID, db: Session = Depends(get_db)):
         booking_fee_paise=theatre.booking_fee_paise,
         gst_rate_bp=s.gst_rate_on_fee_bp,
         max_seats=s.max_seats_per_booking,
+        payment_gateway=s.payment_gateway,
     )
 
 

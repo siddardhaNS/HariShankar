@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { api, ApiError } from "@/lib/api";
-import type { ActionResult, AdminBooking, Layout, LayoutRow, Movie } from "@/lib/types";
+import type { ActionResult, AdminBooking, Layout, LayoutRow, Movie, TheatrePayments } from "@/lib/types";
 
 async function run<T>(fn: () => Promise<T>, paths: string[]): Promise<ActionResult<T>> {
   try {
@@ -105,5 +105,36 @@ export async function refundBooking(bookingId: string, reason: string) {
         body: JSON.stringify({ reason }),
       }),
     ["/bookings", "/", "/shows"],
+  );
+}
+
+// ---------- Direct UPI ----------
+
+export async function reviewPayment(bookingId: string, received: boolean) {
+  return run(
+    () =>
+      api<AdminBooking>(`/api/admin/bookings/${encodeURIComponent(bookingId)}/review`, {
+        method: "POST",
+        body: JSON.stringify({ received }),
+      }),
+    ["/bookings", "/"],
+  );
+}
+
+export async function markRefundSent(bookingId: string, ref: string) {
+  return run(
+    () =>
+      api<AdminBooking>(`/api/admin/bookings/${encodeURIComponent(bookingId)}/refund-sent`, {
+        method: "POST",
+        body: JSON.stringify({ ref }),
+      }),
+    ["/bookings", "/"],
+  );
+}
+
+export async function savePaymentSettings(settings: TheatrePayments) {
+  return run(
+    () => api<TheatrePayments>("/api/admin/theatre/payments", { method: "PUT", body: JSON.stringify(settings) }),
+    ["/bookings", "/"],
   );
 }

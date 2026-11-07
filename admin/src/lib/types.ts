@@ -72,7 +72,7 @@ export type AdminSeat = {
 };
 export type AdminSeatMap = { show_id: string | null; classes: { id: string; name: string }[]; seats: AdminSeat[] };
 
-export type BookingStatus = "payment_pending" | "confirmed" | "failed" | "refunded" | "cancelled";
+export type BookingStatus = "payment_pending" | "payment_review" | "confirmed" | "failed" | "refunded" | "cancelled";
 export type AdminBooking = {
   id: string;
   code: string;
@@ -89,6 +89,9 @@ export type AdminBooking = {
   refund_paise: number;
   refund_id: string | null;
   payment_method: string | null;
+  gateway: string;
+  upi_ref: string | null;
+  refund_pending: boolean;
   seats_admitted: number;
   created_at: string;
 };
@@ -100,8 +103,11 @@ export type Today = {
   seats_total: number;
   refunds_paise: number;
   stuck_payments: number;
+  payments_to_check: number;
+  refunds_to_send: number;
+  upi_id: string | null;
   shows: { id: string; movie_title: string; starts_at: string; label: string; status: string; seats_total: number; seats_sold: number; collection_paise: number }[];
-  setup: { layout: boolean; movies: boolean; shows: boolean; staff: boolean };
+  setup: { layout: boolean; movies: boolean; shows: boolean; staff: boolean; upi: boolean };
 };
 
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -118,3 +124,5 @@ export const ROLE_HINT: Record<Exclude<Role, "super_admin">, string> = {
   manager: "Movies, shows, prices, blocking",
   gate: "Scanning only",
 };
+
+export type TheatrePayments = { upi_id: string; upi_name: string };

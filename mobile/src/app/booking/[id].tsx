@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
@@ -21,6 +22,7 @@ export default function BookingScreen() {
   if (!b) return null;
 
   if (b.status === 'refunded' || b.status === 'cancelled') return <Refunded b={b} />;
+  if (b.status === 'payment_review') return <Checking b={b} reload={reload} />;
 
   const classes = [...new Set(b.seats.map((s) => s.class_name))].join(', ');
   const askProfile = fresh && customer && !customer.gender && !customer.age_group;
@@ -130,8 +132,12 @@ function Refunded({ b }: { b: Booking }) {
           <View style={{ marginTop: 16 }}>
             <Detail label="Refund" value={`${rupees(b.refund_paise)} in full`} />
             <Detail label="Back to" value={payMethodLabel(b.payment_method)} />
-            <Detail label="Usually takes" value="5 to 7 working days" />
-            {b.refund_id && <Detail label="Refund ID" value={b.refund_id} mono />}
+            <Detail label="Usually takes" value={b.gateway === 'upi' ? 'Within a day' : '5 to 7 working days'} />
+            {b.refund_pending ? (
+              <Detail label="Status" value="Theatre is sending it" />
+            ) : (
+              b.refund_id && <Detail label="Refund ID" value={b.refund_id} mono />
+            )}
           </View>
         </Card>
         {b.failure_reason === 'seat_clash' && (
@@ -140,6 +146,39 @@ function Refunded({ b }: { b: Booking }) {
             onPress={() => router.replace({ pathname: '/show/[id]', params: { id: b.show.id } })}
           />
         )}
+        <Button title="Back to movies" kind="ghost" onPress={() => router.dismissTo('/')} />
+      </ScrollView>
+    </View>
+  );
+}
+
+/** Direct UPI: seats are held while the theatre checks the payment arrived. */
+function Checking({ b, reload }: { b: Booking; reload: () => void }) {
+  const c = useColors();
+  useEffect(() => {
+    const t = setInterval(reload, 15_000);
+    return () => clearInterval(t);
+  }, [reload]);
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <Header title="Checking payment" subtitle={`${b.show.movie.title} · ${b.code}`} onBack={() => router.dismissTo('/tickets')} />
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+        <Card style={{ padding: 20 }}>
+          <T v="eyebrow" style={{ color: c.warnInk }}>Seats held for you</T>
+          <T v="display" style={{ fontSize: 30, lineHeight: 32, marginTop: 6 }}>We&apos;re checking your payment</T>
+          <T style={{ marginTop: 10, color: c.ink2 }}>
+            The theatre is matching your UPI reference with the payment it received. Your QR ticket appears here as soon as
+            it&apos;s confirmed, usually within a few minutes. This page refreshes by itself.
+          </T>
+          <View style={{ marginTop: 16 }}>
+            <Detail label="Booking ID" value={b.code} mono />
+            <Detail label="Show" value={`${dayName(istDateKey(b.show.starts_at))}, ${time(b.show.starts_at)}`} />
+            <Detail label="Seats" value={b.seats.map((s) => s.label).join(', ')} />
+            <Detail label="Paid" value={rupees(b.price.total_paise)} />
+            {b.upi_ref && <Detail label="UPI reference" value={b.upi_ref} mono />}
+          </View>
+        </Card>
+        <Button title="Check now" kind="secondary" onPress={reload} />
         <Button title="Back to movies" kind="ghost" onPress={() => router.dismissTo('/')} />
       </ScrollView>
     </View>

@@ -52,6 +52,7 @@ export default function Checkout() {
   const gst = Math.round((fee * data.gst_rate_bp) / 10_000);
   const total = tickets + fee + gst;
   const show = data.show;
+  const upiOnly = data.payment_gateway === 'upi'; // direct UPI: no cards or net banking yet
 
   const pay = async () => {
     setErr(null);
@@ -71,7 +72,16 @@ export default function Checkout() {
       });
       router.push({
         pathname: '/pay',
-        params: { bookingId: res.booking_id, amount: String(res.price.total_paise), method, gateway: res.order.gateway },
+        params: {
+          bookingId: res.booking_id,
+          code: res.code,
+          amount: String(res.price.total_paise),
+          method: upiOnly ? 'upi' : method,
+          gateway: res.order.gateway,
+          upiUrl: res.order.upi_url ?? '',
+          payeeId: res.order.payee_upi_id ?? '',
+          payeeName: res.order.payee_name ?? '',
+        },
       });
     } catch (e) {
       const body = e instanceof ApiError ? (e.body as SeatsTakenBody | null) : null;
@@ -155,11 +165,14 @@ export default function Checkout() {
         <Card>
           <T v="label">Pay with</T>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-            {METHODS.map((m) => (
-              <Chip key={m.key} label={m.label} selected={method === m.key} onPress={() => setMethod(m.key)} />
+            {(upiOnly ? METHODS.slice(0, 1) : METHODS).map((m) => (
+              <Chip key={m.key} label={m.label} selected={upiOnly || method === m.key} onPress={() => setMethod(m.key)} />
             ))}
           </View>
-          {method === 'upi' && (
+          {upiOnly && (
+            <T v="small" style={{ marginTop: 8, fontSize: 12 }}>Cards and net banking are coming soon.</T>
+          )}
+          {!upiOnly && method === 'upi' && (
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
               {UPI_APPS.map((app) => (
                 <Pressable

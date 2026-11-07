@@ -36,7 +36,7 @@ app.include_router(admin_bookings.router)
 app.include_router(app_auth.router)
 app.include_router(app_catalog.router)
 app.include_router(app_bookings.router)
-if settings.is_dev and settings.payment_gateway == "fake":
+if settings.is_dev:  # test payments, never in production
     app.include_router(dev_payments.router)
 
 

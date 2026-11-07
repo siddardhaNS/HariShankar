@@ -10,6 +10,7 @@ import type { Today } from "@/lib/types";
 export const metadata: Metadata = { title: "Today" };
 
 const SETUP: { key: keyof Today["setup"]; step: string; href: string }[] = [
+  { key: "upi", step: "Add the theatre's UPI ID so customers can pay", href: "/bookings" },
   { key: "layout", step: "Set up the hall: rows, seat numbers, aisles and class per row", href: "/shows/layout" },
   { key: "movies", step: "Add the movies now showing and coming soon", href: "/shows/movies" },
   { key: "shows", step: "Create a week of shows with prices for each class", href: "/shows" },
@@ -28,9 +29,13 @@ export default async function TodayPage() {
     { label: "Seats filled", value: `${pct(t.tickets_sold, t.seats_total)}%`, hint: `${t.tickets_sold} of ${t.seats_total} seats` },
     {
       label: "Needs checking",
-      value: String(t.stuck_payments),
-      hint: t.stuck_payments ? "Payments started but not confirmed" : "Nothing waiting",
-      alert: t.stuck_payments > 0,
+      value: String(t.payments_to_check + t.refunds_to_send),
+      hint:
+        t.payments_to_check || t.refunds_to_send
+          ? [t.payments_to_check && `${t.payments_to_check} UPI payment(s) to check`, t.refunds_to_send && `${t.refunds_to_send} refund(s) to send`].filter(Boolean).join(" · ")
+          : "Nothing waiting",
+      alert: t.payments_to_check + t.refunds_to_send > 0,
+      href: "/bookings",
     },
   ];
 
@@ -40,7 +45,8 @@ export default async function TodayPage() {
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {tiles.map((tile) => (
-          <div key={tile.label} className={`card p-4 ${tile.alert ? "border-brand" : ""}`}>
+          <div key={tile.label} className={`card relative p-4 ${tile.alert ? "border-brand" : ""}`}>
+            {"href" in tile && tile.alert && <Link href={tile.href} className="absolute inset-0" aria-label={tile.hint} />}
             <div className="text-xs font-bold uppercase tracking-wider text-ink-2">{tile.label}</div>
             <div className={`mt-2 text-[28px] font-bold leading-none ${tile.alert ? "text-brand" : ""}`}>{tile.value}</div>
             <div className="mt-2 text-xs text-muted">{tile.hint}</div>

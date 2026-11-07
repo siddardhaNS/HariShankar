@@ -3,13 +3,15 @@ import Link from "next/link";
 import { Forbidden, PageHeader } from "@/components/PageHeader";
 import { api, getMe } from "@/lib/api";
 import { dateTime, rupees } from "@/lib/format";
-import type { AdminBooking } from "@/lib/types";
+import type { AdminBooking, TheatrePayments } from "@/lib/types";
+import { PaymentsToCheck, UpiSettings } from "./Payments";
 import { RefundButton } from "./RefundButton";
 
 export const metadata: Metadata = { title: "Bookings" };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   confirmed: { label: "Confirmed", cls: "bg-ok-soft text-[#145c33]" },
+  payment_review: { label: "Checking payment", cls: "bg-[#fff4c2] text-[#7a5b00]" },
   refunded: { label: "Refunded", cls: "bg-brand-soft text-[#8a1424]" },
   failed: { label: "Payment failed", cls: "bg-[#e9eaf1] text-muted" },
   cancelled: { label: "Cancelled", cls: "bg-[#e9eaf1] text-muted" },
@@ -19,6 +21,7 @@ const REASON: Record<string, string> = {
   seat_clash: "Seat clash",
   show_cancelled: "Show cancelled",
   manual_refund: "Refunded by theatre",
+  payment_not_received: "UPI payment not received",
   payment_failed: "Payment failed",
 };
 
@@ -32,13 +35,19 @@ export default async function BookingsPage({ searchParams }: PageProps<"/booking
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (showId) params.set("show_id", showId);
-  const results = q || showId ? await api<AdminBooking[]>(`/api/admin/bookings?${params}`) : null;
   const isOwner = me.user.role === "owner" || me.user.role === "super_admin";
+  const [results, queue, upi] = await Promise.all([
+    q || showId ? api<AdminBooking[]>(`/api/admin/bookings?${params}`) : Promise.resolve(null),
+    api<AdminBooking[]>("/api/admin/payments"),
+    isOwner ? api<TheatrePayments | null>("/api/admin/theatre/payments") : Promise.resolve(null),
+  ]);
   const showLabel = results?.[0] && showId ? `${dateTime(results[0].starts_at)} · ${results[0].movie_title}` : null;
 
   return (
     <>
       <PageHeader title="Bookings" subtitle="Find a booking by booking ID, name or mobile number" />
+      {isOwner && <UpiSettings current={upi} />}
+      <PaymentsToCheck items={queue} isOwner={isOwner} />
 
       <form className="card mb-6 flex flex-wrap items-center gap-3 p-4" action="/bookings">
         <input
@@ -100,7 +109,12 @@ export default async function BookingsPage({ searchParams }: PageProps<"/booking
                       {STATUS[b.status]?.label ?? b.status}
                     </span>
                     {b.failure_reason && <div className="mt-1 text-xs text-muted">{REASON[b.failure_reason] ?? b.failure_reason}</div>}
-                    {b.refund_id && <div className="font-mono text-[11px] text-muted">{b.refund_id}</div>}
+                    {b.refund_pending ? (
+                      <div className="text-xs font-bold text-brand">Refund to send</div>
+                    ) : (
+                      b.refund_id && <div className="font-mono text-[11px] text-muted">{b.refund_id}</div>
+                    )}
+                    {b.upi_ref && <div className="font-mono text-[11px] text-muted">UPI {b.upi_ref}</div>}
                   </td>
                   <td className="px-5 py-3 text-right">
                     {isOwner && b.status === "confirmed" && b.seats_admitted === 0 && (

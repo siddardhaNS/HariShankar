@@ -23,7 +23,7 @@ from app.config import get_settings
 from app.models import Booking, BookingSeat, Customer, Seat, Show, ShowPrice, Theatre
 from app.models.enums import BookingStatus, ShowStatus
 from app.services import seating
-from app.services.payments import GatewayOrder, get_gateway
+from app.services.payments import GatewayOrder, Payee, PaymentsNotSetUp, get_gateway
 from app.services.pricing import price
 
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I
@@ -96,7 +96,10 @@ def start_booking(
 
     gateway = get_gateway()
     code = new_code(db)
-    order = gateway.create_order(bd.total_paise, receipt=code)
+    try:
+        order = gateway.create_order(bd.total_paise, receipt=code, payee=Payee(theatre.upi_id, theatre.upi_name or theatre.name))
+    except PaymentsNotSetUp as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, f"{e}. Please try again later") from None
 
     booking = Booking(
         theatre_id=show.theatre_id,
@@ -124,10 +127,35 @@ def start_booking(
 
 
 def _refund(db: Session, booking: Booking, reason: str) -> None:
-    booking.refund_id = get_gateway().refund(booking.gateway_payment_id or "", booking.total_paise)
+    """Full refund through the booking's own gateway. Direct UPI can't refund
+    by itself, so the booking is flagged for staff to send the money back."""
+    gateway = get_gateway(booking.gateway)
+    booking.refund_id = gateway.refund(booking.gateway_payment_id or booking.upi_ref or "", booking.total_paise)
+    booking.refund_pending = not gateway.automatic_refunds
     booking.refund_paise = booking.total_paise
     booking.status = BookingStatus.refunded
     booking.failure_reason = reason
+
+
+def _hold_seats(db: Session, booking: Booking, show: Show | None) -> str | None:
+    """Try to take the booking's seats. Returns None on success, or why not.
+    The partial unique index makes a second hold on the same seat fail."""
+    if show is None or show.status != ShowStatus.scheduled:
+        return "show_cancelled"
+    seats = list(db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)))
+    states = seating.seat_states(db, show)
+    if any(states.get(bs.seat_id) == seating.BLOCKED for bs in seats):
+        return "seat_clash"
+    try:
+        with db.begin_nested():
+            for bs in seats:
+                bs.holds_seat = True
+            db.flush()
+    except IntegrityError:
+        for bs in seats:
+            bs.holds_seat = False
+        return "seat_clash"
+    return None
 
 
 def confirm_payment(db: Session, order_id: str, payment_id: str, method: str | None) -> Booking:
@@ -141,35 +169,14 @@ def confirm_payment(db: Session, order_id: str, payment_id: str, method: str | N
     booking.gateway_payment_id = payment_id
     booking.payment_method = method
 
-    show = db.get(Show, booking.show_id)
-    seats = list(db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)))
-
     # Money arrived but the booking can't go ahead: refund in full
     if booking.status != BookingStatus.payment_pending:
         _refund(db, booking, booking.failure_reason or "booking_failed")
         db.commit()
         return booking
-    if show is None or show.status != ShowStatus.scheduled:
-        _refund(db, booking, "show_cancelled")
-        db.commit()
-        return booking
-
-    states = seating.seat_states(db, show)
-    if any(states.get(bs.seat_id) == seating.BLOCKED for bs in seats):
-        _refund(db, booking, "seat_clash")
-        db.commit()
-        return booking
-
-    try:
-        with db.begin_nested():
-            for bs in seats:
-                bs.holds_seat = True
-            db.flush()
-    except IntegrityError:
-        # Someone else's payment for one of these seats was confirmed first
-        for bs in seats:
-            bs.holds_seat = False
-        _refund(db, booking, "seat_clash")
+    problem = _hold_seats(db, booking, db.get(Show, booking.show_id))
+    if problem:
+        _refund(db, booking, problem)
         db.commit()
         return booking
 
@@ -182,15 +189,57 @@ def confirm_payment(db: Session, order_id: str, payment_id: str, method: str | N
 def refund_confirmed(db: Session, booking: Booking, reason: str) -> None:
     """Refund a confirmed booking in full and free its seats (show cancelled,
     or a manual refund from the admin). The caller commits."""
-    if booking.status != BookingStatus.confirmed:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only confirmed bookings can be refunded")
+    if booking.status not in (BookingStatus.confirmed, BookingStatus.payment_review):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only paid bookings can be refunded")
     for bs in db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)):
         bs.holds_seat = False
-    if booking.gateway in ("fake", "demo") or booking.gateway_payment_id:
-        _refund(db, booking, reason)
-    else:  # nothing was ever captured
-        booking.status = BookingStatus.refunded
-        booking.failure_reason = reason
+    _refund(db, booking, reason)
+
+
+# ---------- Direct UPI (no gateway) ----------
+
+
+def claim_upi(db: Session, booking: Booking, utr: str) -> Booking:
+    """The customer paid in their UPI app and entered the UPI reference.
+    Seats are held now (first to claim gets them) and staff check the money
+    arrived before the ticket is confirmed."""
+    if booking.gateway != "upi":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This booking isn't paid by direct UPI")
+    if booking.status != BookingStatus.payment_pending:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This booking is already being processed")
+    if db.scalar(select(Booking.id).where(Booking.upi_ref == utr)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This UPI reference was already used for another booking")
+    booking.upi_ref = utr
+    booking.payment_method = "upi"
+    problem = _hold_seats(db, booking, db.get(Show, booking.show_id))
+    if problem:
+        _refund(db, booking, problem)  # they paid, so the theatre owes it back
+    else:
+        booking.status = BookingStatus.payment_review
+    db.commit()
+    return booking
+
+
+def review_upi(db: Session, booking: Booking, received: bool) -> Booking:
+    """Staff checked the theatre's UPI account for this payment."""
+    if booking.status != BookingStatus.payment_review:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This booking isn't waiting for a payment check")
+    if received:
+        booking.status = BookingStatus.confirmed
+        booking.confirmed_at = datetime.now(UTC)
+    else:
+        for bs in db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)):
+            bs.holds_seat = False
+        booking.status = BookingStatus.failed
+        booking.failure_reason = "payment_not_received"
+    return booking
+
+
+def mark_refund_sent(booking: Booking, ref: str) -> None:
+    if not booking.refund_pending:
+        raise HTTPException(status.HTTP_409_CONFLICT, "No refund is waiting to be sent for this booking")
+    booking.refund_id = ref
+    booking.refund_pending = False
 
 
 def fail_payment(db: Session, order_id: str, reason: str = "payment_failed") -> Booking:

@@ -17,7 +17,15 @@ from app.models.enums import BookingStatus, ShowStatus, StaffRole
 from app.routers.admin_catalog import theatre_screen
 from app.routers.admin_shows import shows_out
 from app.routers.app_catalog import show_label
-from app.schemas.admin import AdminBookingOut, RefundIn, TodayOut, TodayShow
+from app.schemas.admin import (
+    AdminBookingOut,
+    RefundIn,
+    RefundSentIn,
+    ReviewIn,
+    TheatrePayments,
+    TodayOut,
+    TodayShow,
+)
 from app.services import bookings as booking_svc
 
 router = APIRouter(prefix="/api/admin", tags=["admin bookings"])
@@ -46,7 +54,8 @@ def _bookings_out(db: Session, rows: list[Booking], tz: ZoneInfo) -> list[AdminB
             mobile=mobiles.get(b.customer_id, ""), movie_title=titles.get(s.movie_id, ""), starts_at=s.starts_at,
             show_label=show_label(s.starts_at, tz), show_status=s.status, seats=seats.get(b.id, []),
             total_paise=b.total_paise, refund_paise=b.refund_paise, refund_id=b.refund_id,
-            payment_method=b.payment_method, seats_admitted=b.seats_admitted, created_at=b.created_at,
+            payment_method=b.payment_method, gateway=b.gateway, upi_ref=b.upi_ref, refund_pending=b.refund_pending,
+            seats_admitted=b.seats_admitted, created_at=b.created_at,
         ))
     return out
 
@@ -120,6 +129,11 @@ def today(user: StaffUser = Depends(manage), db: Session = Depends(get_db)):
         Booking.created_at < now - timedelta(minutes=get_settings().payment_window_minutes),
         Booking.created_at > now - timedelta(days=2)))
 
+    to_check = db.scalar(select(func.count()).select_from(Booking).where(
+        Booking.theatre_id == user.theatre_id, Booking.status == BookingStatus.payment_review)) or 0
+    to_send = db.scalar(select(func.count()).select_from(Booking).where(
+        Booking.theatre_id == user.theatre_id, Booking.refund_pending.is_(True))) or 0
+    theatre = db.get(Theatre, user.theatre_id)
     screen = theatre_screen(db, user)
     setup = {
         "layout": bool(db.scalar(select(Seat.id).where(Seat.screen_id == screen.id, Seat.is_active.is_(True)).limit(1))),
@@ -136,8 +150,74 @@ def today(user: StaffUser = Depends(manage), db: Session = Depends(get_db)):
         seats_total=sum(r.seats_total for r in live),
         refunds_paise=refunds or 0,
         stuck_payments=stuck or 0,
+        payments_to_check=to_check,
+        refunds_to_send=to_send,
+        upi_id=theatre.upi_id if theatre else None,
         shows=[TodayShow(id=r.id, movie_title=r.movie_title, starts_at=r.starts_at, label=r.label, status=r.status,
                          seats_total=r.seats_total, seats_sold=r.seats_sold, collection_paise=r.collection_paise)
                for r in rows],
-        setup=setup,
+        setup={**setup, "upi": bool(theatre and theatre.upi_id)},
     )
+
+
+# ---------- Direct UPI: payments to check, refunds to send ----------
+
+
+def _locked_booking(db: Session, user: StaffUser, booking_id: uuid.UUID) -> Booking:
+    b = db.scalar(select(Booking).where(Booking.id == booking_id, Booking.theatre_id == user.theatre_id).with_for_update())
+    if b is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    return b
+
+
+@router.get("/payments", response_model=list[AdminBookingOut])
+def payments_to_handle(user: StaffUser = Depends(manage), db: Session = Depends(get_db)):
+    """UPI payments waiting for a check, and refunds the theatre still has to send."""
+    rows = list(db.scalars(
+        select(Booking).where(Booking.theatre_id == user.theatre_id,
+                              or_(Booking.status == BookingStatus.payment_review, Booking.refund_pending.is_(True)))
+        .order_by(Booking.updated_at)
+    ))
+    return _bookings_out(db, rows, _tz(db, user))
+
+
+@router.post("/bookings/{booking_id}/review", response_model=AdminBookingOut)
+def review_payment(booking_id: uuid.UUID, body: ReviewIn, user: StaffUser = Depends(manage),
+                   db: Session = Depends(get_db)):
+    """Staff checked the theatre's UPI account: did this payment arrive?"""
+    b = _locked_booking(db, user, booking_id)
+    booking_svc.review_upi(db, b, body.received)
+    audit.record(db, user, "upi_payment_received" if body.received else "upi_payment_not_received", "booking", b.id,
+                 code=b.code, upi_ref=b.upi_ref, amount_paise=b.total_paise)
+    db.commit()
+    return _bookings_out(db, [b], _tz(db, user))[0]
+
+
+@router.post("/bookings/{booking_id}/refund-sent", response_model=AdminBookingOut)
+def refund_sent(booking_id: uuid.UUID, body: RefundSentIn, user: StaffUser = Depends(owner_only),
+                db: Session = Depends(get_db)):
+    """The owner sent a direct-UPI refund by hand; record its UPI reference."""
+    b = _locked_booking(db, user, booking_id)
+    booking_svc.mark_refund_sent(b, body.ref.strip())
+    audit.record(db, user, "refund_sent", "booking", b.id, code=b.code, ref=b.refund_id, amount_paise=b.refund_paise)
+    db.commit()
+    return _bookings_out(db, [b], _tz(db, user))[0]
+
+
+@router.get("/theatre/payments", response_model=TheatrePayments | None)
+def get_payments_settings(user: StaffUser = Depends(owner_only), db: Session = Depends(get_db)):
+    t = db.get(Theatre, user.theatre_id)
+    if t is None or not t.upi_id:
+        return None
+    return TheatrePayments(upi_id=t.upi_id, upi_name=t.upi_name or t.name)
+
+
+@router.put("/theatre/payments", response_model=TheatrePayments)
+def set_payments_settings(body: TheatrePayments, user: StaffUser = Depends(owner_only), db: Session = Depends(get_db)):
+    t = db.get(Theatre, user.theatre_id)
+    assert t
+    audit.record(db, user, "upi_id_changed", "theatre", t.id, old=t.upi_id, new=body.upi_id)
+    t.upi_id = body.upi_id.strip()
+    t.upi_name = body.upi_name.strip()
+    db.commit()
+    return body

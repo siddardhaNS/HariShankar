@@ -201,7 +201,7 @@ def cancel_show(show_id: uuid.UUID, body: CancelShowIn, user: StaffUser = Depend
 
     refunded, amount = 0, 0
     for b in db.scalars(select(Booking).where(Booking.show_id == show.id).with_for_update()):
-        if b.status == BookingStatus.confirmed:
+        if b.status in (BookingStatus.confirmed, BookingStatus.payment_review):
             booking_svc.refund_confirmed(db, b, "show_cancelled")
             refunded += 1
             amount += b.refund_paise
