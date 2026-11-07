@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SeatLegend, SeatMap } from '@/components/SeatMap';
+import { SeatMap } from '@/components/SeatMap';
 import { SeatView } from '@/components/SeatView';
 import { Banner, Button, Card, Chip, ErrorState, Header, Loading, T } from '@/components/ui';
 import { dayName, istDateKey, ordinal, rupees, time } from '@/lib/format';
@@ -182,14 +182,17 @@ export default function PickSeats() {
           </View>
         </Card>
 
-        <Card style={{ paddingHorizontal: 8 }}>
-          <SeatLegend />
-          <View style={{ height: 12 }} />
-          <SeatMap seats={data.seats} classes={data.classes} selected={selectedSet} onToggle={toggle} />
-          <T v="small" style={{ textAlign: 'center', marginTop: 12 }}>
-            {data.seats_left} of {data.seats.length} seats left · up to {data.max_seats} per booking
-          </T>
-        </Card>
+        <SeatMap
+          seats={data.seats}
+          classes={data.classes}
+          selected={selectedSet}
+          onToggle={toggle}
+          footer={
+            <T v="small" style={{ textAlign: 'center', marginTop: 14, color: '#B3B8DC' }}>
+              {data.seats_left} of {data.seats.length} seats left · up to {data.max_seats} per booking
+            </T>
+          }
+        />
       </ScrollView>
 
       <View style={[styles.bar, { backgroundColor: c.card, borderTopColor: c.line, paddingBottom: insets.bottom + 12 }]}>

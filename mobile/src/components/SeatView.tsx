@@ -1,7 +1,10 @@
 import { useWindowDimensions, View } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient, Polygon, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from 'react-native-svg';
+
+import { BRAND } from '@/components/Logo';
 
 import { fonts } from '@/lib/theme';
+
 
 /**
  * "View from your seat": a simple perspective sketch. The screen gets smaller
@@ -30,6 +33,14 @@ export function SeatView({ rowIndex, rowCount, offset, title }: {
     [cx - sw / 2 - skew, top + sh - Math.abs(skew) * 0.3],
   ].map((p) => p.join(',')).join(' ');
 
+  // Curtains at the sides of the hall and a valance across the top; nearer rows see more of them
+  const cw = w * (0.07 + (1 - depth) * 0.05);
+  const vh = h * 0.07;
+  const n = 7;
+  let valance = `M0 0H${w}V${vh}`;
+  for (let i = n; i > 0; i--) valance += `Q${((i - 0.5) * w) / n} ${vh * 1.9} ${((i - 1) * w) / n} ${vh}`;
+  valance += "Z";
+
   const headRows = Math.min(4, rowIndex);
   const heads: React.ReactNode[] = [];
   for (let r = 0; r < headRows; r++) {
@@ -52,12 +63,20 @@ export function SeatView({ rowIndex, rowCount, offset, title }: {
             <Stop offset="0" stopColor="#E2572B" />
             <Stop offset="1" stopColor="#6A2414" />
           </LinearGradient>
+          <LinearGradient id="cur" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={BRAND.red} />
+            <Stop offset="1" stopColor={BRAND.deep} />
+          </LinearGradient>
         </Defs>
         <Rect width={w} height={h} fill="url(#hall)" />
         <Polygon points={screen} fill="url(#scr)" />
         <SvgText x={cx - sw / 2 + 10} y={top + sh * 0.45} fill="#FFFFFF" fontSize={Math.max(10, sw * 0.07)} fontFamily={fonts.display}>
           {title.toUpperCase()}
         </SvgText>
+        <Path d={`M0 0h${cw}c-3 ${h * 0.3} -2 ${h * 0.6} 4 ${h}H0Z`} fill="url(#cur)" />
+        <Path d={`M${w} 0h-${cw}c3 ${h * 0.3} 2 ${h * 0.6} -4 ${h}H${w}Z`} fill="url(#cur)" />
+        <Path d={valance} fill={BRAND.red} />
+        <Rect width={w} height={2} fill={BRAND.gold} />
         {heads}
       </Svg>
     </View>

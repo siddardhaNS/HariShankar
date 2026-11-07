@@ -2,7 +2,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 
+import { BRAND, LogoMark, Wordmark } from '@/components/Logo';
 import { Poster } from '@/components/Poster';
 import { Banner, Button, Card, Chip, ErrorState, Header, Loading, T } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -40,7 +42,20 @@ export default function BookingScreen() {
 
         {(b.can_rate || b.rating) && <RateCard b={b} onSaved={reload} />}
 
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <View style={[styles.ticket, { backgroundColor: c.card, borderColor: c.line }]}>
+          {/* Header band: the theatre, and how many this ticket lets in */}
+          <View style={[styles.band, { backgroundColor: BRAND.house }]}>
+            <LogoMark size={36} />
+            <View style={{ flex: 1 }}>
+              <Wordmark color="#FFFFFF" size={15} />
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <T style={{ fontFamily: fonts.bold, fontSize: 10, letterSpacing: 2, color: BRAND.gold }}>ADMIT</T>
+              <T style={{ fontFamily: fonts.display, fontSize: 34, lineHeight: 36, color: BRAND.gold }}>{b.seats.length}</T>
+            </View>
+          </View>
+          <Valance />
+
           <View style={{ flexDirection: 'row', gap: 14, padding: 16 }}>
             <Poster movie={b.show.movie} width={76} />
             <View style={{ flex: 1 }}>
@@ -60,9 +75,17 @@ export default function BookingScreen() {
             </View>
           </View>
 
-          <View style={[styles.perforation, { borderColor: c.line }]} />
+          {/* Tear line with punched notches, like a paper ticket */}
+          <View style={styles.tear}>
+            <View style={[styles.notch, { left: -13, backgroundColor: c.bg, borderColor: c.line }]} />
+            <View style={[styles.perforation, { borderColor: c.field }]} />
+            <View style={[styles.notch, { right: -13, backgroundColor: c.bg, borderColor: c.line }]} />
+          </View>
 
           <View style={{ alignItems: 'center', paddingBottom: 20 }}>
+            <T style={{ fontFamily: fonts.bold, fontSize: 10, letterSpacing: 3, color: c.muted, marginBottom: 10 }}>
+              SCAN AT THE GATE
+            </T>
             {b.qr ? (
               <View style={{ padding: 12, backgroundColor: '#FFFFFF', borderRadius: 12 }}>
                 <QRCode value={b.qr} size={196} backgroundColor="#FFFFFF" color="#12152B" />
@@ -76,9 +99,9 @@ export default function BookingScreen() {
             <T v="small" style={{ marginTop: 2 }}>
               {b.seats.length} × {classes} · {b.seats.map((s) => s.label).join(', ')}
             </T>
-            <T v="small" style={{ marginTop: 6, fontSize: 12 }}>Show this at the gate. Turn your screen brightness up.</T>
+            <T v="small" style={{ marginTop: 6, fontSize: 12 }}>Turn your screen brightness up. Works even if the gate has no internet.</T>
           </View>
-        </Card>
+        </View>
 
         <Card>
           <Detail label="Booking ID" value={b.code} mono />
@@ -92,7 +115,7 @@ export default function BookingScreen() {
         <Card style={{ backgroundColor: c.warnSoft, borderColor: 'transparent' }}>
           <T v="label" style={{ color: c.warnInk }}>Before the show</T>
           <T v="small" style={{ color: c.warnInk, marginTop: 4 }}>
-            Gates open 30 minutes before the show. Keep this ticket handy at the gate.
+            Gates open an hour before the show. Keep this ticket handy at the gate.
           </T>
         </Card>
 
@@ -281,6 +304,23 @@ function RateCard({ b, onSaved }: { b: Booking; onSaved: () => void }) {
 
 const styles = StyleSheet.create({
   comment: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, minHeight: 70, fontSize: 15, fontFamily: fonts.regular, textAlignVertical: 'top' },
-  perforation: { borderTopWidth: 2, borderStyle: 'dashed', marginVertical: 18, marginHorizontal: 16 },
+  ticket: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
+  band: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
+  tear: { marginVertical: 18, justifyContent: 'center' },
+  notch: { position: 'absolute', width: 26, height: 26, borderRadius: 13, borderWidth: 1 },
+  perforation: { borderTopWidth: 2, borderStyle: 'dashed', marginHorizontal: 22 },
   detail: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 6 },
 });
+
+/** Red scalloped valance with a gold edge, under the ticket header. */
+function Valance() {
+  return (
+    <Svg width="100%" height={12} viewBox="0 0 100 12" preserveAspectRatio="none">
+      <Path
+        d="M0 0H100V5Q93.75 12 87.5 5Q81.25 12 75 5Q68.75 12 62.5 5Q56.25 12 50 5Q43.75 12 37.5 5Q31.25 12 25 5Q18.75 12 12.5 5Q6.25 12 0 5Z"
+        fill={BRAND.red}
+      />
+      <Rect width="100" height="1.2" fill={BRAND.gold} />
+    </Svg>
+  );
+}
