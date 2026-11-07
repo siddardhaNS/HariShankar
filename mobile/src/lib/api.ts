@@ -46,7 +46,7 @@ function readError(body: unknown, status: number): string {
 
 export async function api<T>(
   path: string,
-  init: { method?: string; body?: unknown; as?: 'customer' | 'staff' } = {},
+  init: { method?: string; body?: unknown; as?: 'customer' | 'staff'; timeoutMs?: number } = {},
 ): Promise<T> {
   const token = init.as === 'staff' ? staffToken : authToken;
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -54,7 +54,7 @@ export async function api<T>(
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {

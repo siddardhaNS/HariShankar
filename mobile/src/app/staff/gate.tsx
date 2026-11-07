@@ -6,6 +6,7 @@ import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, Vib
 import { Banner, Button, Card, Header, T } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { time } from '@/lib/format';
+import * as offlineGate from '@/lib/gateOffline';
 import { useStaff } from '@/lib/staff';
 import { fonts, useColors, type Colors } from '@/lib/theme';
 import type { GateShow, GateTicket, GateVerdict } from '@/lib/types';
@@ -54,63 +55,138 @@ export default function GateScreen() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const handling = useRef(false); // the camera fires many times a second for one QR
+  // Offline: no internet, tickets checked against today's list saved on the phone
+  const [offline, setOffline] = useState(false);
+  const [listAt, setListAt] = useState<string | null>(() => offlineGate.load().list?.generated_at ?? null);
+  const [waiting, setWaiting] = useState(() => offlineGate.pendingCount());
+  const [checkedOffline, setCheckedOffline] = useState(false);
+  const [syncProblems, setSyncProblems] = useState<string[]>([]);
+
+  const goOffline = useCallback(() => {
+    setOffline(true);
+    const list = offlineGate.offlineShows();
+    if (list.length) {
+      setShows(list);
+      setShowId((cur) => (cur && list.some((s) => s.id === cur) ? cur : pickShow(list)));
+    }
+  }, []);
 
   const loadShows = useCallback(async () => {
     try {
-      const list = await api<GateShow[]>('/api/gate/shows', { as: 'staff' });
+      const list = await api<GateShow[]>('/api/gate/shows', { as: 'staff', timeoutMs: 8_000 });
       setShows(list);
       setShowId((cur) => (cur && list.some((s) => s.id === cur) ? cur : pickShow(list)));
+      setOffline(false);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Couldn't load today's shows");
+      if (offlineGate.isNetworkError(e)) goOffline();
+      else setErr(e instanceof ApiError ? e.message : "Couldn't load today's shows");
     }
-  }, []);
+  }, [goOffline]);
+
+  /** Send entries made offline, then refresh today's list. Quiet when there's no internet. */
+  const syncAndRefresh = useCallback(async () => {
+    try {
+      const report = await offlineGate.sync();
+      if (report.problems.length) setSyncProblems((p) => [...p, ...report.problems]);
+      const list = await offlineGate.refresh();
+      setListAt(list.generated_at);
+      setOffline(false);
+    } catch (e) {
+      if (offlineGate.isNetworkError(e)) goOffline();
+    } finally {
+      setWaiting(offlineGate.pendingCount());
+    }
+  }, [goOffline]);
 
   useFocusEffect(
     useCallback(() => {
       void loadShows();
-    }, [loadShows]),
+      void syncAndRefresh();
+      const every = setInterval(() => {
+        void syncAndRefresh().then(loadShows);
+      }, 60_000);
+      return () => clearInterval(every);
+    }, [loadShows, syncAndRefresh]),
   );
 
   if (!staff) return <Redirect href="/staff/login" />;
 
   const show = shows?.find((s) => s.id === showId) ?? null;
 
+  const showResult = (t: GateTicket, fromPhone: boolean) => {
+    setResult(t);
+    setCount(t.seats_left);
+    setJustIn(null);
+    setTyped('');
+    setCheckedOffline(fromPhone);
+    Vibration.vibrate(t.verdict === 'ok' ? 80 : [0, 250, 120, 250]);
+  };
+
   const check = async (scan: string) => {
     if (handling.current) return;
     handling.current = true;
     setErr(null);
+    // Known to be offline: answer at once from the phone; the minute timer finds the internet again
+    if (offline) {
+      showResult(offlineGate.lookup(scan, showId), true);
+      return;
+    }
     setBusy(true);
     try {
-      const t = await api<GateTicket>('/api/gate/lookup', { method: 'POST', body: { scan, show_id: showId }, as: 'staff' });
-      setResult(t);
-      setCount(t.seats_left);
-      setJustIn(null);
-      setTyped('');
-      Vibration.vibrate(t.verdict === 'ok' ? 80 : [0, 250, 120, 250]);
+      const t = await api<GateTicket>('/api/gate/lookup', {
+        method: 'POST', body: { scan, show_id: showId }, as: 'staff', timeoutMs: 5_000,
+      });
+      showResult(t, false);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Something went wrong');
-      handling.current = false;
+      if (offlineGate.isNetworkError(e)) {
+        goOffline();
+        showResult(offlineGate.lookup(scan, showId), true);
+      } else {
+        setErr(e instanceof ApiError ? e.message : 'Something went wrong');
+        handling.current = false;
+      }
     } finally {
       setBusy(false);
     }
   };
 
+  const admitOnPhone = (bookingId: string, code: string | null) => {
+    offlineGate.admit(bookingId, count);
+    setWaiting(offlineGate.pendingCount());
+    const t = offlineGate.lookup(code ?? '', showId);
+    setResult(t);
+    setJustIn(count);
+    setCount(t.seats_left);
+    setCheckedOffline(true);
+    goOffline();
+  };
+
   const admit = async () => {
     if (!result?.booking_id) return;
     setErr(null);
+    if (checkedOffline) {
+      admitOnPhone(result.booking_id, result.code);
+      return;
+    }
     setBusy(true);
     try {
       const t = await api<GateTicket>(`/api/gate/bookings/${result.booking_id}/admit`, {
         method: 'POST',
         body: { count, show_id: showId },
         as: 'staff',
+        timeoutMs: 5_000,
       });
       setResult(t);
       setJustIn(count);
       setCount(t.seats_left);
       void loadShows();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Something went wrong');
+      // Internet dropped between the scan and the tap: save it on the phone instead
+      if (offlineGate.isNetworkError(e) && offlineGate.load().list?.bookings.some((b) => b.id === result.booking_id)) {
+        admitOnPhone(result.booking_id, result.code);
+      } else {
+        setErr(e instanceof ApiError ? e.message : 'Something went wrong');
+      }
     } finally {
       setBusy(false);
     }
@@ -118,6 +194,15 @@ export default function GateScreen() {
 
   const undo = async (entryId: string) => {
     setErr(null);
+    // Not synced yet: just forget it on the phone
+    if (offlineGate.undo(entryId)) {
+      setWaiting(offlineGate.pendingCount());
+      const t = offlineGate.lookup(result?.code ?? '', showId);
+      setResult(t);
+      setJustIn(null);
+      setCount(t.seats_left);
+      return;
+    }
     setBusy(true);
     try {
       const t = await api<GateTicket>(`/api/gate/entries/${entryId}`, { method: 'DELETE', as: 'staff' });
@@ -129,7 +214,9 @@ export default function GateScreen() {
       setCount(t.seats_left);
       void loadShows();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Something went wrong');
+      setErr(offlineGate.isNetworkError(e)
+        ? "No internet. Entries already synced can be undone once it's back"
+        : e instanceof ApiError ? e.message : 'Something went wrong');
     } finally {
       setBusy(false);
     }
@@ -139,6 +226,7 @@ export default function GateScreen() {
     setResult(null);
     setJustIn(null);
     setErr(null);
+    setCheckedOffline(false);
     handling.current = false;
   };
 
@@ -153,6 +241,11 @@ export default function GateScreen() {
             accessibilityRole="button"
             hitSlop={12}
             onPress={async () => {
+              if (offlineGate.pendingCount() > 0) {
+                setErr(`${offlineGate.pendingCount()} let in on this phone haven't synced yet. Log out once the internet is back`);
+                return;
+              }
+              offlineGate.clear();
               await signOut();
               router.replace('/');
             }}
@@ -189,6 +282,16 @@ export default function GateScreen() {
           </ScrollView>
         )}
         {show && <T v="small" numberOfLines={1}>{show.movie_title}</T>}
+
+        <OfflineStatus offline={offline} listAt={listAt} waiting={waiting} />
+        {syncProblems.length > 0 && (
+          <Banner kind="error" title="Synced, with problems to check">
+            <T v="small" style={{ color: c.brandInk, marginTop: 3 }}>{syncProblems.join('\n')}</T>
+            <Pressable accessibilityRole="button" onPress={() => setSyncProblems([])} style={{ marginTop: 8 }}>
+              <T v="label" style={{ color: c.brand }}>OK</T>
+            </Pressable>
+          </Banner>
+        )}
 
         {err && <Banner kind="error">{err}</Banner>}
 
@@ -257,6 +360,7 @@ export default function GateScreen() {
             onAdmit={admit}
             onUndo={undo}
             onNext={next}
+            fromPhone={checkedOffline}
           />
         )}
       </ScrollView>
@@ -264,7 +368,29 @@ export default function GateScreen() {
   );
 }
 
-function Result({ t, count, setCount, justIn, busy, onAdmit, onUndo, onNext }: {
+function OfflineStatus({ offline, listAt, waiting }: { offline: boolean; listAt: string | null; waiting: number }) {
+  const c = useColors();
+  if (offline) {
+    return (
+      <View style={[styles.offline, { backgroundColor: c.warnSoft }]}>
+        <T v="label" style={{ color: c.warnInk }}>No internet</T>
+        <T v="small" style={{ color: c.warnInk, marginTop: 2 }}>
+          {listAt
+            ? `Checking tickets against today's list from ${time(listAt)}.`
+            : "Today's list isn't on this phone yet, so tickets can't be checked until the internet is back."}
+          {waiting > 0 ? ` ${waiting} let in on this phone will sync when it's back.` : ''}
+        </T>
+      </View>
+    );
+  }
+  return (
+    <T v="small" style={{ fontSize: 12 }}>
+      {waiting > 0 ? `Syncing ${waiting} let in without internet…` : listAt ? `Ready for no internet: today's list saved at ${time(listAt)}` : "Saving today's list for no internet…"}
+    </T>
+  );
+}
+
+function Result({ t, count, setCount, justIn, busy, onAdmit, onUndo, onNext, fromPhone }: {
   t: GateTicket;
   count: number;
   setCount: (n: number) => void;
@@ -273,6 +399,7 @@ function Result({ t, count, setCount, justIn, busy, onAdmit, onUndo, onNext }: {
   onAdmit: () => void;
   onUndo: (entryId: string) => void;
   onNext: () => void;
+  fromPhone: boolean;
 }) {
   const c = useColors();
   const shown: GateVerdict = justIn !== null && t.seats_left === 0 ? 'ok' : t.verdict;
@@ -287,6 +414,7 @@ function Result({ t, count, setCount, justIn, busy, onAdmit, onUndo, onNext }: {
       <View style={[styles.verdict, { backgroundColor: bg }]} accessibilityLiveRegion="polite">
         <T style={{ fontFamily: fonts.display, fontSize: 44, lineHeight: 46, color: fg, textTransform: 'uppercase' }}>{headline}</T>
         <T style={{ fontFamily: fonts.medium, fontSize: 17, lineHeight: 22, color: fg, marginTop: 4 }}>{message}</T>
+        {fromPhone && <T style={{ fontSize: 12, lineHeight: 16, color: fg, marginTop: 6, opacity: 0.85 }}>Checked on this phone (no internet)</T>}
       </View>
 
       {t.booking_id && (
@@ -340,7 +468,7 @@ function Result({ t, count, setCount, justIn, busy, onAdmit, onUndo, onNext }: {
             </T>
             <Stepper label="+" a11y="One more" disabled={count >= t.seats_left} onPress={() => setCount(count + 1)} />
           </View>
-          <Button title={count === t.seats_left ? `Let all ${count} in` : `Let ${count} in`} onPress={onAdmit} loading={busy} />
+          <Button title={count === t.seats_left && count > 1 ? `Let all ${count} in` : `Let ${count} in`} onPress={onAdmit} loading={busy} />
         </Card>
       )}
 
@@ -371,6 +499,7 @@ const styles = StyleSheet.create({
   torch: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   codeInput: { flex: 1, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 50, fontSize: 20, fontFamily: fonts.bold, letterSpacing: 3 },
   verdict: { borderRadius: 18, padding: 20 },
+  offline: { borderRadius: 12, padding: 12 },
   seat: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   step: { width: 56, height: 56, borderRadius: 28, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
 });

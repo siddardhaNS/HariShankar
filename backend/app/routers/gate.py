@@ -20,7 +20,20 @@ from app.deps import require_roles
 from app.models import Booking, BookingSeat, Customer, Entry, Movie, Seat, Show, StaffUser, Theatre
 from app.models.enums import BookingStatus, ShowStatus, StaffRole
 from app.routers.app_catalog import show_label
-from app.schemas.gate import AdmitIn, GateEntry, GateShow, GateTicket, LookupIn, Verdict
+from app.schemas.gate import (
+    AdmitIn,
+    GateEntry,
+    GateShow,
+    GateTicket,
+    LookupIn,
+    OfflineBooking,
+    OfflineList,
+    OfflineShow,
+    SyncIn,
+    SyncOut,
+    SyncResult,
+    Verdict,
+)
 from app.security import QR_PREFIX, read_ticket_qr
 
 router = APIRouter(prefix="/api/gate", tags=["gate"])
@@ -108,7 +121,8 @@ def _ticket(db: Session, user: StaffUser, b: Booking, gate_show_id: uuid.UUID | 
     undo_after = now - timedelta(minutes=s.gate_undo_minutes)
     entries = [
         GateEntry(id=e.id, count=e.count, at=e.created_at, by=name,
-                  can_undo=e.scanned_by == user.id and e.created_at >= undo_after)
+                  can_undo=e.scanned_by == user.id and e.created_at >= undo_after,
+                  offline=e.offline, problem=e.problem)
         for e, name in db.execute(
             select(Entry, StaffUser.name).join(StaffUser, StaffUser.id == Entry.scanned_by)
             .where(Entry.booking_id == b.id).order_by(Entry.created_at)
@@ -208,3 +222,92 @@ def undo_entry(entry_id: uuid.UUID, user: StaffUser = Depends(gate_staff), db: S
     db.delete(e)
     db.commit()
     return _ticket(db, user, b, None)
+
+
+# ---------- Offline gate ----------
+#
+# The scanner phone keeps a copy of today's bookings, refreshed every couple of
+# minutes while it has internet. Without internet it checks tickets against that
+# copy and saves who it let in; when the internet is back it sends those entries
+# here. The phone can't check the QR signature offline (that would mean putting
+# the server's secret on every phone), so a ticket must match a real booking in
+# the copy instead; booking IDs are random, so a typed-up fake won't match.
+
+
+@router.get("/offline", response_model=OfflineList)
+def offline_list(user: StaffUser = Depends(gate_staff), db: Session = Depends(get_db)):
+    """Today's shows and every booking for them, for checking tickets without internet."""
+    tz = _tz(db, user)
+    day_start = datetime.combine(datetime.now(tz).date(), time.min, tz)
+    shows = db.execute(
+        select(Show, Movie.title, Movie.runtime_min).join(Movie, Movie.id == Show.movie_id)
+        .where(Show.theatre_id == user.theatre_id, Show.starts_at >= day_start,
+               Show.starts_at < day_start + timedelta(days=1)).order_by(Show.starts_at)
+    ).all()
+    show_out, cancelled = [], set()
+    for s, title, runtime in shows:
+        opens, ends = _window(s, runtime)
+        show_out.append(OfflineShow(id=s.id, movie_title=title, label=show_label(s.starts_at, tz), starts_at=s.starts_at,
+                                    opens_at=opens, ends_at=ends, status=s.status))
+        if s.status == ShowStatus.cancelled:
+            cancelled.add(s.id)
+    ids = [s.id for s, _, _ in shows]
+    rows = list(db.execute(
+        select(Booking, Customer.mobile).join(Customer, Customer.id == Booking.customer_id)
+        .where(Booking.show_id.in_(ids), Booking.status.in_((
+            BookingStatus.confirmed, BookingStatus.payment_review, BookingStatus.refunded, BookingStatus.cancelled)))
+    )) if ids else []
+    seats: dict[uuid.UUID, list[str]] = {}
+    if rows:
+        for bid, r, n in db.execute(
+            select(BookingSeat.booking_id, Seat.row_label, Seat.number).join(Seat, Seat.id == BookingSeat.seat_id)
+            .where(BookingSeat.booking_id.in_([b.id for b, _ in rows])).order_by(Seat.grid_row, Seat.grid_col)
+        ):
+            seats.setdefault(bid, []).append(f"{r}{n}")
+    out = []
+    for b, mobile in rows:
+        if b.status == BookingStatus.payment_review:
+            state, msg = "not_paid", "Payment not checked yet. Ask the manager to check it in Payments"
+        elif b.status != BookingStatus.confirmed or b.show_id in cancelled:
+            state = "cancelled"
+            msg = "This show was cancelled" if b.show_id in cancelled else "This ticket was refunded"
+        else:
+            state, msg = "ok", ""
+        s = seats.get(b.id, [])
+        out.append(OfflineBooking(id=b.id, code=b.code, show_id=b.show_id, state=state, message=msg,
+                                  customer_name=b.customer_name, mobile_last4=(mobile or "")[-4:], seats=s,
+                                  seats_total=len(s), seats_admitted=b.seats_admitted))
+    return OfflineList(generated_at=datetime.now(UTC), theatre_id=user.theatre_id, shows=show_out, bookings=out)
+
+
+@router.post("/sync", response_model=SyncOut)
+def sync_offline(body: SyncIn, user: StaffUser = Depends(gate_staff), db: Session = Depends(get_db)):
+    """Entries made without internet. People who went in did go in, so every
+    entry is recorded; anything odd (more than were paid for, because two
+    offline phones let in the same people, or a ticket refunded meanwhile) is
+    recorded with the problem so the manager can see it."""
+    results = []
+    for e in sorted(body.entries, key=lambda x: x.scanned_at):
+        if db.get(Entry, e.id):
+            results.append(SyncResult(id=e.id, result="already"))
+            continue
+        b = db.scalar(select(Booking).where(Booking.id == e.booking_id, Booking.theatre_id == user.theatre_id)
+                      .with_for_update())
+        if b is None:
+            results.append(SyncResult(id=e.id, result="rejected", message="Booking not found"))
+            continue
+        total = db.scalar(select(func.count()).select_from(BookingSeat).where(BookingSeat.booking_id == b.id)) or 0
+        problem = None
+        if b.status != BookingStatus.confirmed:
+            problem = "Ticket wasn't valid (refunded or not paid)"
+        elif b.seats_admitted + e.count > total:
+            problem = f"{b.seats_admitted + e.count - total} more let in than paid for"
+        db.add(Entry(id=e.id, booking_id=b.id, show_id=b.show_id, count=e.count, scanned_by=user.id,
+                     offline=True, scanned_at=e.scanned_at, problem=problem))
+        b.seats_admitted += e.count
+        if problem:
+            audit.record(db, user, "offline_entry_problem", "booking", b.id, code=b.code, problem=problem)
+        db.flush()
+        results.append(SyncResult(id=e.id, result="problem" if problem else "recorded", message=problem or ""))
+    db.commit()
+    return SyncOut(results=results)

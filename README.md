@@ -56,6 +56,8 @@ Over Wi-Fi instead of USB, put `EXPO_PUBLIC_API_URL=http://<your computer's LAN 
 
 In the app: Profile, or the login screen, then *Theatre staff? Open the gate scanner*. Staff log in with the same mobile number and PIN as the admin website (Owner, Manager or Gate staff). The scanner reads the ticket QR, checks its signature, and shows a big result: let in, already in, not paid, wrong show, too early, fake. Groups can enter in parts (2 now, 2 later); a wrong tap can be undone by the same person within 5 minutes. No QR? Type the booking ID. Gates open 60 minutes before the show.
 
+**Without internet** the scanner keeps working: while online it saves today's bookings on the phone (refreshed every minute), checks tickets against that list when the network drops, and syncs who it let in as soon as it's back. If two offline phones let in the same people, the server still records both entries and flags the extra ones. Staff can't log out while entries are waiting to sync.
+
 API docs: http://localhost:8000/docs
 
 ### Tests

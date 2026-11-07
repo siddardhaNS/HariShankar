@@ -120,3 +120,8 @@ class Entry(IdMixin, Base):
     count: Mapped[int] = mapped_column(Integer)
     scanned_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("staff_users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Let in while the phone had no internet, synced later. The phone picks the id,
+    # so sending the same entry twice records it once.
+    offline: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # phone's time of the scan
+    problem: Mapped[str | None] = mapped_column(String(80))  # e.g. more let in than paid for (two offline phones)
