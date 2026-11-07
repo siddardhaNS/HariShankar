@@ -183,3 +183,23 @@ def test_today(client, setup_hall):
     h, _, _ = setup_hall
     t = client.get("/api/admin/today", headers=h).json()
     assert t["setup"]["layout"] and t["setup"]["movies"] and not t["setup"]["staff"]
+
+
+def test_booked_seats_view_shows_who_booked(client, db, setup_hall):
+    h, _, movie = setup_hall
+    make_shows(client, h, movie["id"])
+    show = client.get("/api/admin/shows?days=3", headers=h).json()[0]
+    _, hall = class_ids(client, h)
+    picks = [s["id"] for s in hall["seats"] if s["row"] == "C" and s["number"] in (2, 1)]
+    ch = app_login(client, db, "9876533333")
+    b = client.post("/api/app/bookings", headers=ch, json={
+        "show_id": show["id"], "seat_ids": picks, "name": "Ravi Teja"}).json()
+    client.post(f"/api/app/dev/bookings/{b['booking_id']}/pay", headers=ch, json={})
+
+    m = client.get(f"/api/admin/seatmap?show_id={show['id']}", headers=h).json()
+    assert [(x["code"], x["name"], x["mobile"], x["seats"], x["seats_admitted"]) for x in m["bookings"]] == [
+        (b["code"], "Ravi Teja", "9876533333", ["C1", "C2"], 0)]
+    c1 = next(s for s in m["seats"] if s["row"] == "C" and s["number"] == 1)
+    assert c1["state"] == "booked" and c1["booking_id"] == b["booking_id"]
+    # The hall view (no show) lists no bookings
+    assert client.get("/api/admin/seatmap", headers=h).json()["bookings"] == []

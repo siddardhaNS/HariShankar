@@ -8,10 +8,12 @@ type Props = {
   selected?: Set<string>;
   onToggle?: (seat: AdminSeat) => void;
   onRow?: (seats: AdminSeat[]) => void;
+  /** Booked seats can be tapped too (to see who booked them). */
+  pickBooked?: boolean;
 };
 
 /** The hall as a grid: empty columns are aisles, empty rows separate classes. Screen at the top. */
-export function SeatGrid({ seats, classes, selected, onToggle, onRow }: Props) {
+export function SeatGrid({ seats, classes, selected, onToggle, onRow, pickBooked }: Props) {
   if (!seats.length) {
     return <p className="py-10 text-center text-sm text-muted">No seats yet. Set up the hall layout first.</p>;
   }
@@ -63,7 +65,9 @@ export function SeatGrid({ seats, classes, selected, onToggle, onRow }: Props) {
                         : `${s.row}${s.number}`;
                   const style =
                     s.state === "booked"
-                      ? "bg-[#c9ccdc] border-[#c9ccdc] text-white"
+                      ? sel
+                        ? "bg-brand border-brand text-white"
+                        : "bg-[#c9ccdc] border-[#c9ccdc] text-white"
                       : s.state === "blocked"
                         ? s.block_all_shows
                           ? "bg-ink border-ink text-white"
@@ -76,7 +80,7 @@ export function SeatGrid({ seats, classes, selected, onToggle, onRow }: Props) {
                       title={title}
                       aria-label={title}
                       aria-pressed={sel}
-                      disabled={!onToggle || s.state === "booked"}
+                      disabled={!onToggle || (s.state === "booked" && !pickBooked)}
                       onClick={() => onToggle?.(s)}
                       className={`h-7 w-7 rounded-t-lg rounded-b-md border-2 text-[10px] font-medium transition ${style} ${
                         sel ? "ring-2 ring-brand ring-offset-1" : ""

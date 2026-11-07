@@ -19,6 +19,7 @@ export function ShowActions({ show }: { show: Show }) {
   if (show.status === "cancelled") {
     return (
       <div className="ml-auto flex gap-2">
+        <Link href={`/shows/seats?show=${show.id}`} className="btn-secondary px-3 py-1.5 text-sm">Seats</Link>
         <Link href={`/bookings?show=${show.id}`} className="btn-secondary px-3 py-1.5 text-sm">Bookings</Link>
       </div>
     );
@@ -51,7 +52,7 @@ export function ShowActions({ show }: { show: Show }) {
     <div className="ml-auto flex w-full flex-col items-end gap-2 sm:w-auto">
       {mode === "idle" && (
         <div className="flex flex-wrap justify-end gap-2">
-          <Link href={`/block-rows?show=${show.id}`} className="btn-secondary px-3 py-1.5 text-sm">Seats</Link>
+          <Link href={`/shows/seats?show=${show.id}`} className="btn-secondary px-3 py-1.5 text-sm">Seats</Link>
           <Link href={`/bookings?show=${show.id}`} className="btn-secondary px-3 py-1.5 text-sm">Bookings</Link>
           {!past && (
             <>

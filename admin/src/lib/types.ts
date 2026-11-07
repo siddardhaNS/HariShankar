@@ -69,8 +69,24 @@ export type AdminSeat = {
   block_all_shows: boolean;
   booking_code: string | null;
   booked_by: string | null;
+  booking_id: string | null;
 };
-export type AdminSeatMap = { show_id: string | null; classes: { id: string; name: string }[]; seats: AdminSeat[] };
+export type SeatMapBooking = {
+  id: string;
+  code: string;
+  name: string;
+  mobile: string;
+  seats: string[];
+  seats_admitted: number;
+  total_paise: number;
+  booked_at: string;
+};
+export type AdminSeatMap = {
+  show_id: string | null;
+  classes: { id: string; name: string }[];
+  seats: AdminSeat[];
+  bookings: SeatMapBooking[];
+};
 
 export type BookingStatus = "payment_pending" | "payment_review" | "confirmed" | "failed" | "refunded" | "cancelled";
 export type AdminBooking = {

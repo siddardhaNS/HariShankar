@@ -27,6 +27,7 @@ from app.schemas.admin import (
     ShowPriceOut,
     ShowsCreateIn,
     ShowsCreateOut,
+    SeatMapBooking,
     UnblockIn,
 )
 from app.services import bookings as booking_svc
@@ -228,16 +229,23 @@ def admin_seat_map(show_id: uuid.UUID | None = None, user: StaffUser = Depends(m
     classes = [{"id": str(c.id), "name": c.name} for c in db.scalars(
         select(SeatClass).where(SeatClass.screen_id == screen.id).order_by(SeatClass.sort_order))]
 
-    booked: dict[uuid.UUID, tuple[str, str]] = {}
+    booked: dict[uuid.UUID, tuple[str, str, uuid.UUID]] = {}
+    bookings: dict[uuid.UUID, SeatMapBooking] = {}
     block_q = select(SeatBlock).where(SeatBlock.theatre_id == user.theatre_id, SeatBlock.released_at.is_(None))
     if show_id:
         show = _own_show(db, user, show_id)
-        for seat_id, code, name, mobile in db.execute(
-            select(BookingSeat.seat_id, Booking.code, Booking.customer_name, Customer.mobile)
+        seat_names = {s.id: f"{s.row_label}{s.number}" for s in seats}
+        for seat_id, b, mobile in db.execute(
+            select(BookingSeat.seat_id, Booking, Customer.mobile)
             .join(Booking, Booking.id == BookingSeat.booking_id).join(Customer, Customer.id == Booking.customer_id)
             .where(BookingSeat.show_id == show.id, BookingSeat.holds_seat.is_(True))
         ):
-            booked[seat_id] = (code, name or mobile)
+            booked[seat_id] = (b.code, b.customer_name or mobile, b.id)
+            if b.id not in bookings:
+                bookings[b.id] = SeatMapBooking(
+                    id=b.id, code=b.code, name=b.customer_name, mobile=mobile, seats=[],
+                    seats_admitted=b.seats_admitted, total_paise=b.total_paise, booked_at=b.confirmed_at or b.created_at)
+            bookings[b.id].seats.append(seat_names.get(seat_id, "?"))
         block_q = block_q.where(or_(SeatBlock.show_id == show.id, SeatBlock.show_id.is_(None)))
     else:
         block_q = block_q.where(SeatBlock.show_id.is_(None))
@@ -252,9 +260,13 @@ def admin_seat_map(show_id: uuid.UUID | None = None, user: StaffUser = Depends(m
             state="booked" if bk else "blocked" if b else "free",
             block_id=b.id if b else None, block_reason=b.reason if b else None,
             block_all_shows=bool(b and b.show_id is None),
-            booking_code=bk[0] if bk else None, booked_by=bk[1] if bk else None,
+            booking_code=bk[0] if bk else None, booked_by=bk[1] if bk else None, booking_id=bk[2] if bk else None,
         ))
-    return AdminSeatMap(show_id=show_id, classes=classes, seats=out)
+    seat_order = {f"{s.row_label}{s.number}": i for i, s in enumerate(seats)}
+    for b in bookings.values():
+        b.seats.sort(key=lambda x: seat_order.get(x, 0))
+    listed = sorted(bookings.values(), key=lambda b: (seat_order.get(b.seats[0], 0), b.code))
+    return AdminSeatMap(show_id=show_id, classes=classes, seats=out, bookings=listed)
 
 
 @router.post("/blocks", response_model=BlockOut)

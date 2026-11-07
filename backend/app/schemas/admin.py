@@ -153,12 +153,26 @@ class AdminSeat(BaseModel):
     block_all_shows: bool = False
     booking_code: str | None = None
     booked_by: str | None = None
+    booking_id: uuid.UUID | None = None
+
+
+class SeatMapBooking(BaseModel):
+    """One booking on a show's seat map: who booked, which seats, and how many came in."""
+    id: uuid.UUID
+    code: str
+    name: str
+    mobile: str
+    seats: list[str]
+    seats_admitted: int
+    total_paise: int
+    booked_at: datetime
 
 
 class AdminSeatMap(BaseModel):
     show_id: uuid.UUID | None  # None = the hall for "all upcoming shows"
     classes: list[dict]
     seats: list[AdminSeat]
+    bookings: list[SeatMapBooking] = []  # with show_id only
 
 
 BlockReason = Literal["House quota", "Guests", "Press", "Repair", "Other"]

@@ -28,6 +28,7 @@ export function SubNav({ items }: { items: { href: string; label: string }[] }) 
 
 export const SHOWS_TABS = [
   { href: "/shows", label: "Show timings" },
+  { href: "/shows/seats", label: "Booked seats" },
   { href: "/shows/movies", label: "Movies" },
   { href: "/shows/layout", label: "Hall layout" },
 ];

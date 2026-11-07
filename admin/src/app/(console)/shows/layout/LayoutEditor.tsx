@@ -29,7 +29,7 @@ function previewSeats(rows: LayoutRow[]): { seats: AdminSeat[]; classes: { id: s
     for (let n = 1; n <= row.seats; n++) {
       seats.push({
         id: `${row.label}${n}`, row: row.label, number: n, r, c, class_id: name, state: "free",
-        block_id: null, block_reason: null, block_all_shows: false, booking_code: null, booked_by: null,
+        block_id: null, block_reason: null, block_all_shows: false, booking_code: null, booked_by: null, booking_id: null,
       });
       c += row.aisles_after.includes(n) ? 2 : 1;
     }
