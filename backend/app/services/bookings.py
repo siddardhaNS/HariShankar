@@ -179,6 +179,20 @@ def confirm_payment(db: Session, order_id: str, payment_id: str, method: str | N
     return booking
 
 
+def refund_confirmed(db: Session, booking: Booking, reason: str) -> None:
+    """Refund a confirmed booking in full and free its seats (show cancelled,
+    or a manual refund from the admin). The caller commits."""
+    if booking.status != BookingStatus.confirmed:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only confirmed bookings can be refunded")
+    for bs in db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)):
+        bs.holds_seat = False
+    if booking.gateway in ("fake", "demo") or booking.gateway_payment_id:
+        _refund(db, booking, reason)
+    else:  # nothing was ever captured
+        booking.status = BookingStatus.refunded
+        booking.failure_reason = reason
+
+
 def fail_payment(db: Session, order_id: str, reason: str = "payment_failed") -> Booking:
     booking = db.scalar(select(Booking).where(Booking.gateway_order_id == order_id).with_for_update())
     if booking is None:

@@ -15,9 +15,9 @@ const ALL: Role[] = ["super_admin", "owner", "manager", "gate"];
 // Order and names follow the sidebar in the mockups
 export const NAV: NavItem[] = [
   { href: "/", label: "Today", roles: ADMIN, ready: true, blurb: "Collection, tickets sold, seats filled and alerts" },
-  { href: "/shows", label: "Shows", roles: ADMIN, blurb: "Movies, a week of show timings, prices and booking open time" },
-  { href: "/bookings", label: "Bookings", roles: ADMIN, blurb: "Search by booking ID, name or mobile; resend or refund" },
-  { href: "/block-rows", label: "Block rows", roles: ADMIN, blurb: "Block rows or seats for one show or all upcoming shows" },
+  { href: "/shows", label: "Shows", roles: ADMIN, ready: true, blurb: "Movies, a week of show timings, prices and booking open time" },
+  { href: "/bookings", label: "Bookings", roles: ADMIN, ready: true, blurb: "Search by booking ID, name or mobile; resend or refund" },
+  { href: "/block-rows", label: "Block rows", roles: ADMIN, ready: true, blurb: "Block rows or seats for one show or all upcoming shows" },
   { href: "/scan", label: "Scan tickets", roles: ALL, blurb: "Scan the QR or type the booking ID at the gate" },
   { href: "/promotions", label: "Promotions", roles: ADMIN, blurb: "Offers and promo codes customers use at checkout" },
   { href: "/messages", label: "Messages", roles: OWNER, blurb: "Promotional WhatsApp messages to opted-in customers" },

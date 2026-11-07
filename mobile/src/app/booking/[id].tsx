@@ -114,7 +114,9 @@ function Refunded({ b }: { b: Booking }) {
       ? `Someone else's payment for ${b.seats.length > 1 ? 'these seats' : 'this seat'} went through at the same moment as yours, and theirs reached us first. We've cancelled your booking and sent back your full refund.`
       : b.failure_reason === 'show_cancelled'
         ? 'This show was cancelled. We have sent back your full refund.'
-        : "Your payment went through but the booking couldn't be completed. We've sent back your full refund.";
+        : b.failure_reason === 'manual_refund'
+          ? 'The theatre has cancelled this booking and sent back your full refund.'
+          :"Your payment went through but the booking couldn't be completed. We've sent back your full refund.";
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <Header title="Payment refunded" subtitle={`${b.show.movie.title} · ${time(b.show.starts_at)}`} onBack={() => router.dismissTo('/')} />
