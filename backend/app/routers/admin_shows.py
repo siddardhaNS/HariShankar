@@ -192,7 +192,7 @@ def update_prices(show_id: uuid.UUID, body: PricesIn, user: StaffUser = Depends(
 @router.post("/shows/{show_id}/cancel", response_model=CancelShowOut)
 def cancel_show(show_id: uuid.UUID, body: CancelShowIn, user: StaffUser = Depends(manage), db: Session = Depends(get_db)):
     """Cancel with a reason: every confirmed booking is refunded in full and its
-    seats freed. (WhatsApp messages to those customers come with the WhatsApp milestone.)"""
+    seats freed. Each customer gets a WhatsApp message about the refund."""
     show = _own_show(db, user, show_id, lock=True)
     if show.status == ShowStatus.cancelled:
         raise HTTPException(status.HTTP_409_CONFLICT, "Already cancelled")

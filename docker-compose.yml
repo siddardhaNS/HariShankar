@@ -31,5 +31,19 @@ services:
         condition: service_healthy
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
+  # Show reminders and WhatsApp sending (prints messages to its log until a provider is chosen)
+  worker:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://hs:hs_dev_password@db:5432/harishankar
+    volumes:
+      - ./backend:/app
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    command: python -m app.worker
+
 volumes:
   pgdata:

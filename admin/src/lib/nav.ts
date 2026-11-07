@@ -20,7 +20,7 @@ export const NAV: NavItem[] = [
   { href: "/block-rows", label: "Block rows", roles: ADMIN, ready: true, blurb: "Block rows or seats for one show or all upcoming shows" },
   { href: "/scan", label: "Scan tickets", roles: ALL, blurb: "Gate scanning is in the Hari Shankar Android app: Profile, then Gate scanner. Log in with this same mobile number and PIN" },
   { href: "/promotions", label: "Promotions", roles: ADMIN, ready: true, blurb: "Offers and promo codes customers use at checkout" },
-  { href: "/messages", label: "Messages", roles: OWNER, blurb: "Promotional WhatsApp messages to opted-in customers" },
+  { href: "/messages", label: "Messages", roles: OWNER, ready: true, blurb: "Promotional WhatsApp messages to opted-in customers" },
   { href: "/insights", label: "Insights", roles: OWNER, ready: true, blurb: "Who books, when they book and what fills the hall" },
   { href: "/reports", label: "Reports", roles: OWNER, ready: true, blurb: "Daily collection, occupancy, refunds and GST" },
   { href: "/staff", label: "Staff", roles: OWNER, ready: true, blurb: "Add staff, set roles, reset PINs, disable logins" },

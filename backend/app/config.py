@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     max_seats_per_booking: int = 10
     gst_rate_on_fee_bp: int = 1800     # 18% GST on the booking fee, in basis points
 
+    # WhatsApp (provider decided later; console prints to the log in development)
+    whatsapp_provider: str = "console"
+
     # Gate
     gate_opens_minutes_before: int = 60  # tickets can be scanned from this long before the show
     gate_undo_minutes: int = 5           # a wrong entry can be undone by the same staff for this long

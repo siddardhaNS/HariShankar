@@ -204,3 +204,31 @@ export type Insights = {
   stars: Bar[];
   comments: { movie_title: string; stars: number; comment: string; at: string }[];
 };
+
+export type Audience = "all" | "recent_30" | "recent_90";
+
+export type Campaign = {
+  id: string;
+  title: string;
+  body: string;
+  audience: Audience;
+  status: "queued" | "sending" | "done";
+  send_after: string;
+  recipients: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+  created_at: string;
+};
+
+export type MessageLog = {
+  id: string;
+  kind: string;
+  mobile: string;
+  body: string;
+  status: "queued" | "sent" | "failed" | "skipped";
+  error: string | null;
+  send_after: string;
+  sent_at: string | null;
+  booking_code: string | null;
+};

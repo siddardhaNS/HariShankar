@@ -50,6 +50,8 @@ Over Wi-Fi instead of USB, put `EXPO_PUBLIC_API_URL=http://<your computer's LAN 
 
 **Payments (development):** the gateway isn't chosen yet, so after *Pay* the app shows a **Test payment** screen. *Payment succeeds* runs the same server-side confirmation the real gateway webhook will, including the seat-clash refund.
 
+**WhatsApp (development):** the provider isn't chosen yet, so the `worker` service prints each message to its log: `docker compose logs -f worker | grep -A4 "DEV WHATSAPP"`. It sends booking confirmations, refund messages, show reminders (9 AM on the day, and 1 hour before) and the owner's offers from the Messages page. A real provider is one class in `app/services/whatsapp.py`; each message kind becomes one pre-approved WhatsApp template.
+
 ### Gate scanner (staff)
 
 In the app: Profile, or the login screen, then *Theatre staff? Open the gate scanner*. Staff log in with the same mobile number and PIN as the admin website (Owner, Manager or Gate staff). The scanner reads the ticket QR, checks its signature, and shows a big result: let in, already in, not paid, wrong show, too early, fake. Groups can enter in parts (2 now, 2 later); a wrong tap can be undone by the same person within 5 minutes. No QR? Type the booking ID. Gates open 60 minutes before the show.
@@ -95,4 +97,5 @@ Server side: OTP codes are stored hashed, expire in 5 minutes, max 5 sends an ho
 6. ~~Promotions: promo codes at checkout~~
 7. ~~Reports (collection, seats, refunds, GST, CSV) and Insights (show times, days, booking lead time, group size, audience, movies)~~
 8. ~~Ratings: stars and comments on the ticket after the show; averages in the app and Insights~~
-9. WhatsApp messages
+9. ~~WhatsApp messages: booking, refund and reminder messages; owner offers with opt-in, quiet hours and a weekly limit~~ (provider to be plugged in)
+10. Razorpay and the SMS provider, when chosen

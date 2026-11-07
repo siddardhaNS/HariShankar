@@ -422,3 +422,48 @@ class InsightsOut(BaseModel):
     movies: list[MovieInsight]
     stars: list[Bar]
     comments: list[RatingComment]
+
+
+# ---------- WhatsApp messages ----------
+
+Audience = Literal["all", "recent_30", "recent_90"]
+
+
+class CampaignIn(BaseModel):
+    title: str = Field(min_length=3, max_length=80)
+    body: str = Field(min_length=10, max_length=700)
+    audience: Audience = "all"
+    send_after: datetime | None = None  # None: now (or 9 AM if it's night)
+
+
+class CampaignOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    title: str
+    body: str
+    audience: Audience
+    status: str
+    send_after: datetime
+    recipients: int
+    sent: int = 0
+    skipped: int = 0
+    failed: int = 0
+    created_at: datetime
+
+
+class AudienceCount(BaseModel):
+    audience: Audience
+    customers: int
+
+
+class MessageLogOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    mobile: str
+    body: str
+    status: str
+    error: str | None
+    send_after: datetime
+    sent_at: datetime | None
+    booking_code: str | None

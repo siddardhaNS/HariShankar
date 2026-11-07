@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Booking, BookingSeat, Customer, Seat, Show, ShowPrice, Theatre
 from app.models.enums import BookingStatus, ShowStatus
-from app.services import promotions, seating
+from app.services import promotions, seating, whatsapp
 from app.services.payments import GatewayOrder, Payee, PaymentsNotSetUp, get_gateway
 from app.services.pricing import price
 
@@ -190,6 +190,7 @@ def confirm_payment(db: Session, order_id: str, payment_id: str, method: str | N
 
     booking.status = BookingStatus.confirmed
     booking.confirmed_at = datetime.now(UTC)
+    whatsapp.booking_confirmed(db, booking)
     db.commit()
     return booking
 
@@ -202,6 +203,7 @@ def refund_confirmed(db: Session, booking: Booking, reason: str) -> None:
     for bs in db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)):
         bs.holds_seat = False
     _refund(db, booking, reason)
+    whatsapp.refunded(db, booking, reason)
 
 
 # ---------- Direct UPI (no gateway) ----------
@@ -235,6 +237,7 @@ def review_upi(db: Session, booking: Booking, received: bool) -> Booking:
     if received:
         booking.status = BookingStatus.confirmed
         booking.confirmed_at = datetime.now(UTC)
+        whatsapp.booking_confirmed(db, booking)
     else:
         for bs in db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)):
             bs.holds_seat = False
@@ -243,11 +246,12 @@ def review_upi(db: Session, booking: Booking, received: bool) -> Booking:
     return booking
 
 
-def mark_refund_sent(booking: Booking, ref: str) -> None:
+def mark_refund_sent(db: Session, booking: Booking, ref: str) -> None:
     if not booking.refund_pending:
         raise HTTPException(status.HTTP_409_CONFLICT, "No refund is waiting to be sent for this booking")
     booking.refund_id = ref
     booking.refund_pending = False
+    whatsapp.refund_sent(db, booking)
 
 
 def fail_payment(db: Session, order_id: str, reason: str = "payment_failed") -> Booking:

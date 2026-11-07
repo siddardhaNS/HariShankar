@@ -198,7 +198,7 @@ def refund_sent(booking_id: uuid.UUID, body: RefundSentIn, user: StaffUser = Dep
                 db: Session = Depends(get_db)):
     """The owner sent a direct-UPI refund by hand; record its UPI reference."""
     b = _locked_booking(db, user, booking_id)
-    booking_svc.mark_refund_sent(b, body.ref.strip())
+    booking_svc.mark_refund_sent(db, b, body.ref.strip())
     audit.record(db, user, "refund_sent", "booking", b.id, code=b.code, ref=b.refund_id, amount_paise=b.refund_paise)
     db.commit()
     return _bookings_out(db, [b], _tz(db, user))[0]
