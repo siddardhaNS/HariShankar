@@ -151,3 +151,34 @@ def test_one_reminder_per_customer_per_show(client, db, owner, hall):  # noqa: F
     db.commit()
     rem = list(db.scalars(select(Message).where(Message.kind == "reminder_hour")))
     assert len(rem) == 1 and "B3, B4, B5" in rem[0].body
+
+
+def test_seat_clash_refunds_send_a_message(client, db, owner, hall):  # noqa: F811
+    """Two payments for the same seat at the same moment: the second is refunded and told why."""
+    show, seats = hall
+    ha, hb = app_login(client, db, "9876500761"), app_login(client, db, "9876500762")
+    body = {"show_id": str(show.id), "seat_ids": [str(seats["B6"].id)],
+            "name": "X"}
+    a = client.post("/api/app/bookings", headers=ha, json=body).json()["booking_id"]
+    b = client.post("/api/app/bookings", headers=hb, json=body).json()["booking_id"]
+    client.post(f"/api/app/dev/bookings/{a}/pay", headers=ha, json={})
+    assert client.post(f"/api/app/dev/bookings/{b}/pay", headers=hb, json={}).json()["status"] == "refunded"
+    m = db.scalar(select(Message).where(Message.kind == "refunded"))
+    assert m.mobile == "9876500762" and "someone else booked the same seats" in m.body
+    assert "has been refunded" in m.body  # gateway refunds by itself
+
+
+def test_direct_upi_seat_clash_message_says_money_comes_back(client, db, owner, hall, monkeypatch):  # noqa: F811
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "payment_gateway", "upi")
+    h = login(client)
+    client.put("/api/admin/theatre/payments", headers=h, json={"upi_id": "hs@okaxis", "upi_name": "Hari Shankar"})
+    show, seats = hall
+    ha, hb = app_login(client, db, "9876500771"), app_login(client, db, "9876500772")
+    body = {"show_id": str(show.id), "seat_ids": [str(seats["A6"].id)], "name": "X"}
+    a = client.post("/api/app/bookings", headers=ha, json=body).json()["booking_id"]
+    b = client.post("/api/app/bookings", headers=hb, json=body).json()["booking_id"]
+    client.post(f"/api/app/bookings/{a}/upi-ref", headers=ha, json={"utr": "412345678771"})
+    client.post(f"/api/app/bookings/{b}/upi-ref", headers=hb, json={"utr": "412345678772"})
+    m = db.scalar(select(Message).where(Message.kind == "refunded"))
+    assert m.mobile == "9876500772" and "We'll send ₹173.60 back to the UPI account you paid from" in m.body

@@ -145,6 +145,7 @@ def _refund(db: Session, booking: Booking, reason: str, note: str | None = None)
     booking.failure_reason = reason
     booking.refunded_at = datetime.now(UTC)
     booking.refund_note = note
+    whatsapp.refunded(db, booking, reason)  # every refund path tells the customer
 
 
 def _hold_seats(db: Session, booking: Booking, show: Show | None) -> str | None:
@@ -206,7 +207,6 @@ def refund_confirmed(db: Session, booking: Booking, reason: str, note: str | Non
     for bs in db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)):
         bs.holds_seat = False
     _refund(db, booking, reason, note)
-    whatsapp.refunded(db, booking, reason)
 
 
 # ---------- Direct UPI (no gateway) ----------

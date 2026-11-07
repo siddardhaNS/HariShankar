@@ -123,15 +123,21 @@ def resend_ticket(db: Session, b: Booking) -> None:
 
 
 def refunded(db: Session, b: Booking, reason: str) -> None:
-    """Show cancelled or a refund from the theatre."""
+    """Every full refund: show cancelled, refunded by the theatre, seats taken first, or paid too late."""
     customer = db.get(Customer, b.customer_id)
     if not customer:
         return
     _, title, when, _ = _ticket_words(db, b)
-    why = "has been cancelled" if reason == "show_cancelled" else "booking has been cancelled by the theatre"
+    why = {
+        "show_cancelled": f"Sorry, {title} on {when} has been cancelled.",
+        "manual_refund": f"Your booking for {title} on {when} has been cancelled by the theatre.",
+        "seat_clash": (f"Sorry, someone else booked the same seats for {title} on {when} just before your payment "
+                       "came through, so this booking couldn't go ahead. Other seats may still be free in the app."),
+    }.get(reason, f"Your payment for {title} on {when} came through after booking had closed, "
+                  "so this booking couldn't go ahead.")
     how = (f"We'll send {_rupees(b.refund_paise)} back to the UPI account you paid from, and message you when it's sent."
            if b.refund_pending else f"{_rupees(b.refund_paise)} has been refunded. It reaches your account in 5 to 7 days.")
-    body = f"Sorry, {title} on {when} {why}.\nBooking ID: {b.code}\n{how}"
+    body = f"{why}\nBooking ID: {b.code}\n{how}"
     _queue(db, theatre_id=b.theatre_id, customer=customer, kind="refunded", body=body,
            key=f"refunded:{b.id}", booking_id=b.id)
 
