@@ -250,3 +250,76 @@ class RefundSentIn(BaseModel):
 class TheatrePayments(BaseModel):
     upi_id: Annotated[str, Field(pattern=r"^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$", max_length=60)]
     upi_name: Annotated[str, Field(min_length=2, max_length=60)]
+
+
+# ---------- Promotions ----------
+
+
+def _clean_weekdays(v: str) -> str:
+    days = "".join(sorted(set(v)))
+    if not days or any(d not in "0123456" for d in days):
+        raise ValueError("Pick at least one day")
+    return days
+
+
+class PromotionFields(BaseModel):
+    title: str = Field(min_length=3, max_length=80)
+    kind: Literal["per_ticket", "percent"]
+    value: int = Field(gt=0, description="Paise off each ticket, or percent off tickets")
+    max_discount_paise: int | None = Field(default=None, gt=0)
+    min_tickets: int = Field(default=1, ge=1, le=10)
+    weekdays: str = "0123456"
+    starts_on: date | None = None
+    ends_on: date | None = None
+    max_uses: int | None = Field(default=None, gt=0)
+    per_customer: int | None = Field(default=1, gt=0)
+    first_booking_only: bool = False
+    show_in_app: bool = True
+    is_active: bool = True
+
+    @field_validator("weekdays")
+    @classmethod
+    def _days(cls, v: str) -> str:
+        return _clean_weekdays(v)
+
+
+class PromotionIn(PromotionFields):
+    code: str = Field(min_length=3, max_length=20)
+
+    @field_validator("code")
+    @classmethod
+    def _code(cls, v: str) -> str:
+        v = "".join(v.split()).upper()
+        if not v.isalnum() or not v.isascii():
+            raise ValueError("Use only letters and numbers, like MATINEE30")
+        return v
+
+
+class PromotionUpdate(BaseModel):
+    """Everything except the code can change (bookings already carry it)."""
+    title: str | None = Field(default=None, min_length=3, max_length=80)
+    max_discount_paise: int | None = Field(default=None, gt=0)
+    min_tickets: int | None = Field(default=None, ge=1, le=10)
+    weekdays: str | None = None
+    starts_on: date | None = None
+    ends_on: date | None = None
+    max_uses: int | None = Field(default=None, gt=0)
+    per_customer: int | None = Field(default=None, gt=0)
+    first_booking_only: bool | None = None
+    show_in_app: bool | None = None
+    is_active: bool | None = None
+
+    @field_validator("weekdays")
+    @classmethod
+    def _days(cls, v: str | None) -> str | None:
+        return None if v is None else _clean_weekdays(v)
+
+
+class PromotionOut(PromotionIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    details: str
+    uses: int                  # paid bookings with this code
+    discount_given_paise: int  # total taken off those bookings
+    created_at: datetime

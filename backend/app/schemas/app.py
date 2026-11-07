@@ -152,6 +152,19 @@ class BookingCreateIn(BaseModel):
     show_id: uuid.UUID
     seat_ids: list[uuid.UUID] = Field(min_length=1, max_length=10)
     name: str = Field(min_length=1, max_length=80)
+    promo_code: str | None = Field(default=None, max_length=20)
+
+
+class PromoApplyIn(BaseModel):
+    show_id: uuid.UUID
+    seat_ids: list[uuid.UUID] = Field(min_length=1, max_length=10)
+    code: str = Field(min_length=1, max_length=20)
+
+
+class OfferOut(BaseModel):
+    code: str
+    title: str
+    details: str
 
 
 class PriceOut(BaseModel):
@@ -211,3 +224,10 @@ class DevPayIn(BaseModel):
 
 class UpiClaimIn(BaseModel):
     utr: Annotated[str, Field(pattern=r"^\d{12}$", description="12-digit UPI reference (UTR) from the UPI app")]
+
+
+class PromoApplyOut(BaseModel):
+    code: str
+    title: str
+    discount_paise: int
+    price: PriceOut

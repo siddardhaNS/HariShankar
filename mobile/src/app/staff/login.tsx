@@ -36,7 +36,7 @@ export default function StaffLoginScreen() {
         setPending(r);
       } else {
         await signIn(r);
-        router.replace('/staff');
+        router.replace('/staff/gate');
       }
     } catch (e) {
       setErr(message(e));
@@ -62,7 +62,7 @@ export default function StaffLoginScreen() {
       // Uses the token from the first login, once, then keeps the new one
       const res = await fetchWithToken(pending.access_token, { current_pin: pin, new_pin: newPin });
       await signIn(res);
-      router.replace('/staff');
+      router.replace('/staff/gate');
     } catch (e) {
       setErr(message(e));
     } finally {

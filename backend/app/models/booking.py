@@ -36,6 +36,7 @@ class Booking(IdMixin, TimestampMixin, TheatreScoped, Base):
     # All money in paise
     tickets_paise: Mapped[int] = mapped_column(Integer)
     discount_paise: Mapped[int] = mapped_column(Integer, default=0)
+    promotion_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("promotions.id"), index=True)
     booking_fee_paise: Mapped[int] = mapped_column(Integer)
     gst_paise: Mapped[int] = mapped_column(Integer)
     total_paise: Mapped[int] = mapped_column(Integer)

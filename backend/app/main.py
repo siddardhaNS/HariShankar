@@ -6,11 +6,13 @@ from app.routers import (
     admin_auth,
     admin_bookings,
     admin_catalog,
+    admin_promotions,
     admin_shows,
     admin_staff,
     app_auth,
     app_bookings,
     app_catalog,
+    app_promotions,
     dev_payments,
     gate,
 )
@@ -32,11 +34,13 @@ app.include_router(admin_staff.router)
 app.include_router(admin_catalog.router)
 app.include_router(admin_shows.router)
 app.include_router(admin_bookings.router)
+app.include_router(admin_promotions.router)
 
 # Customer app
 app.include_router(app_auth.router)
 app.include_router(app_catalog.router)
 app.include_router(app_bookings.router)
+app.include_router(app_promotions.router)
 
 # Gate staff (scanner in the Android app)
 app.include_router(gate.router)

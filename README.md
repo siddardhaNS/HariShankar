@@ -92,4 +92,5 @@ Server side: OTP codes are stored hashed, expire in 5 minutes, max 5 sends an ho
 3. Admin: seat layout, movies, show timings and prices, block rows, cancel a show
 4. Razorpay: orders, webhook confirmation, automatic and manual refunds, booking fee and GST
 5. ~~Gate scanner in the Android app (QR, booking ID fallback, partial entry)~~
-6. WhatsApp messages, ratings, promotions, insights and reports
+6. ~~Promotions: promo codes at checkout~~
+7. Reports and insights, ratings, WhatsApp messages

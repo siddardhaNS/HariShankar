@@ -70,7 +70,7 @@ def own_booking(db: Session, customer: Customer, booking_id: uuid.UUID) -> Booki
              responses={409: {"description": "Seats taken; includes the closest free seats together"}})
 def start(body: BookingCreateIn, customer: Customer = Depends(current_customer), db: Session = Depends(get_db)):
     try:
-        booking, order = svc.start_booking(db, customer, body.show_id, body.seat_ids, body.name.strip())
+        booking, order = svc.start_booking(db, customer, body.show_id, body.seat_ids, body.name.strip(), body.promo_code)
     except svc.SeatsTaken as e:
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,

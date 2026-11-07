@@ -181,3 +181,12 @@ export type GateTicket = {
   seats_left: number;
   entries: GateEntry[];
 };
+
+export type Offer = { code: string; title: string; details: string };
+
+export type PromoApplied = {
+  code: string;
+  title: string;
+  discount_paise: number;
+  price: { tickets_paise: number; discount_paise: number; booking_fee_paise: number; gst_paise: number; total_paise: number };
+};

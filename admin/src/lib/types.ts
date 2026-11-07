@@ -126,3 +126,25 @@ export const ROLE_HINT: Record<Exclude<Role, "super_admin">, string> = {
 };
 
 export type TheatrePayments = { upi_id: string; upi_name: string };
+
+export type Promotion = {
+  id: string;
+  code: string;
+  title: string;
+  kind: "per_ticket" | "percent";
+  value: number;
+  max_discount_paise: number | null;
+  min_tickets: number;
+  weekdays: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  max_uses: number | null;
+  per_customer: number | null;
+  first_booking_only: boolean;
+  show_in_app: boolean;
+  is_active: boolean;
+  details: string;
+  uses: number;
+  discount_given_paise: number;
+  created_at: string;
+};

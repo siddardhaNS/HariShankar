@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { api, ApiError } from "@/lib/api";
-import type { ActionResult, AdminBooking, Layout, LayoutRow, Movie, TheatrePayments } from "@/lib/types";
+import type { ActionResult, AdminBooking, Layout, LayoutRow, Movie, Promotion, TheatrePayments } from "@/lib/types";
 
 async function run<T>(fn: () => Promise<T>, paths: string[]): Promise<ActionResult<T>> {
   try {
@@ -136,5 +136,29 @@ export async function savePaymentSettings(settings: TheatrePayments) {
   return run(
     () => api<TheatrePayments>("/api/admin/theatre/payments", { method: "PUT", body: JSON.stringify(settings) }),
     ["/bookings", "/"],
+  );
+}
+
+// ---------- Promotions ----------
+
+export type PromotionInput = Omit<Promotion, "id" | "details" | "uses" | "discount_given_paise" | "created_at">;
+
+export async function savePromotion(id: string | null, input: PromotionInput) {
+  const { code, kind, value, ...rest } = input;
+  return run(
+    () =>
+      api<Promotion>(id ? `/api/admin/promotions/${encodeURIComponent(id)}` : "/api/admin/promotions", {
+        method: id ? "PATCH" : "POST",
+        // Code and discount type are fixed once customers may have used them
+        body: JSON.stringify(id ? rest : { code, kind, value, ...rest }),
+      }),
+    ["/promotions"],
+  );
+}
+
+export async function setPromotionActive(id: string, is_active: boolean) {
+  return run(
+    () => api<Promotion>(`/api/admin/promotions/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ is_active }) }),
+    ["/promotions"],
   );
 }

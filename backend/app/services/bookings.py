@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Booking, BookingSeat, Customer, Seat, Show, ShowPrice, Theatre
 from app.models.enums import BookingStatus, ShowStatus
-from app.services import seating
+from app.services import promotions, seating
 from app.services.payments import GatewayOrder, Payee, PaymentsNotSetUp, get_gateway
 from app.services.pricing import price
 
@@ -61,7 +61,8 @@ def bookable_show(db: Session, show_id: uuid.UUID) -> Show:
 
 
 def start_booking(
-    db: Session, customer: Customer, show_id: uuid.UUID, seat_ids: list[uuid.UUID], customer_name: str
+    db: Session, customer: Customer, show_id: uuid.UUID, seat_ids: list[uuid.UUID], customer_name: str,
+    promo_code: str | None = None,
 ) -> tuple[Booking, GatewayOrder]:
     s = get_settings()
     if not seat_ids or len(seat_ids) > s.max_seats_per_booking:
@@ -92,7 +93,13 @@ def start_booking(
     theatre = db.get(Theatre, show.theatre_id)
     assert theatre is not None
     seat_prices = [prices[seat.seat_class_id] for seat in chosen_seats]
-    bd = price(seat_prices, theatre.booking_fee_paise)
+    promo, discount = None, 0
+    if promo_code:
+        try:
+            promo, discount = promotions.check(db, show, customer, promo_code, seat_prices)
+        except promotions.PromoError as e:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from None
+    bd = price(seat_prices, theatre.booking_fee_paise, discount)
 
     gateway = get_gateway()
     code = new_code(db)
@@ -110,6 +117,7 @@ def start_booking(
         status=BookingStatus.payment_pending,
         tickets_paise=bd.tickets_paise,
         discount_paise=bd.discount_paise,
+        promotion_id=promo.id if promo else None,
         booking_fee_paise=bd.booking_fee_paise,
         gst_paise=bd.gst_paise,
         total_paise=bd.total_paise,

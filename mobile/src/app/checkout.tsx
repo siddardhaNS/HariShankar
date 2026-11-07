@@ -9,7 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dayName, istDateKey, rupees, time } from '@/lib/format';
 import { fonts, useColors } from '@/lib/theme';
-import type { BookingStart, PayMethod, SeatMap, SeatsTakenBody } from '@/lib/types';
+import type { BookingStart, Offer, PayMethod, PromoApplied, SeatMap, SeatsTakenBody } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
 const METHODS: { key: PayMethod; label: string }[] = [
@@ -26,12 +26,17 @@ export default function Checkout() {
   const { showId, seatIds } = useLocalSearchParams<{ showId: string; seatIds: string }>();
   const ids = (seatIds ?? '').split(',').filter(Boolean);
   const { data, error, loading, reload } = useApi<SeatMap>(`/api/app/shows/${showId}/seats`);
+  const { data: offers } = useApi<Offer[]>(`/api/app/shows/${showId}/offers`);
 
   const [name, setName] = useState<string | null>(null);
   const [method, setMethod] = useState<PayMethod>('upi');
   const [upiApp, setUpiApp] = useState('PhonePe');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [promo, setPromo] = useState<PromoApplied | null>(null);
+  const [codeInput, setCodeInput] = useState('');
+  const [promoErr, setPromoErr] = useState<string | null>(null);
+  const [applying, setApplying] = useState<string | null>(null);
 
   if (loading) return <Loading />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
@@ -50,9 +55,29 @@ export default function Checkout() {
   const tickets = [...byClass.values()].reduce((a, b) => a + b.total, 0);
   const fee = data.booking_fee_paise * seats.length;
   const gst = Math.round((fee * data.gst_rate_bp) / 10_000);
-  const total = tickets + fee + gst;
+  const total = promo ? promo.price.total_paise : tickets + fee + gst;
   const show = data.show;
   const upiOnly = data.payment_gateway === 'upi'; // direct UPI: no cards or net banking yet
+
+  const applyCode = async (code: string) => {
+    setPromoErr(null);
+    if (!customer) {
+      router.push('/login');
+      return;
+    }
+    setApplying(code);
+    try {
+      setPromo(await api<PromoApplied>('/api/app/promotions/apply', {
+        method: 'POST',
+        body: { show_id: show.id, seat_ids: ids, code },
+      }));
+      setCodeInput('');
+    } catch (e) {
+      setPromoErr(e instanceof ApiError ? e.message : 'Something went wrong');
+    } finally {
+      setApplying(null);
+    }
+  };
 
   const pay = async () => {
     setErr(null);
@@ -68,7 +93,7 @@ export default function Checkout() {
     try {
       const res = await api<BookingStart>('/api/app/bookings', {
         method: 'POST',
-        body: { show_id: show.id, seat_ids: ids, name: nameValue.trim() },
+        body: { show_id: show.id, seat_ids: ids, name: nameValue.trim(), promo_code: promo?.code },
       });
       router.push({
         pathname: '/pay',
@@ -96,6 +121,10 @@ export default function Checkout() {
             suggestLabels: body.suggestion.labels.join(','),
           },
         });
+      } else if (promo && e instanceof ApiError && e.status === 409) {
+        // The code stopped working between applying and paying (e.g. fully used)
+        setPromo(null);
+        setPromoErr(e.message);
       } else {
         setErr(e instanceof ApiError ? e.message : 'Something went wrong');
       }
@@ -127,6 +156,7 @@ export default function Checkout() {
           {[...byClass.values()].map((k) => (
             <Row key={k.name} label={`${k.name} × ${k.count}`} value={rupees(k.total)} />
           ))}
+          {promo && <Row label={`Offer ${promo.code}`} value={`- ${rupees(promo.discount_paise)}`} color={c.ok} />}
           <Row label={`Booking fee (${rupees(data.booking_fee_paise)} × ${seats.length})`} value={rupees(fee)} />
           <Row label="GST on booking fee" value={rupees(gst)} />
           <View style={[styles.divider, { backgroundColor: c.line }]} />
@@ -134,6 +164,48 @@ export default function Checkout() {
             <T style={{ fontFamily: fonts.bold, fontSize: 22, lineHeight: 28 }}>Total</T>
             <T style={{ fontFamily: fonts.bold, fontSize: 22, lineHeight: 28 }}>{rupees(total)}</T>
           </View>
+        </Card>
+
+        <Card style={{ gap: 10 }}>
+          <T v="label">Offers</T>
+          {promo ? (
+            <View style={[styles.applied, { backgroundColor: c.okSoft }]}>
+              <View style={{ flex: 1 }}>
+                <T v="label" style={{ color: c.ok }}>{promo.code} applied</T>
+                <T v="small" style={{ color: c.ok }}>{promo.title}. You save {rupees(promo.discount_paise)}</T>
+              </View>
+              <Pressable accessibilityRole="button" hitSlop={10} onPress={() => setPromo(null)}>
+                <T v="label" style={{ color: c.brand }}>Remove</T>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              {(offers ?? []).map((o) => (
+                <View key={o.code} style={[styles.offer, { borderColor: c.line }]}>
+                  <View style={{ flex: 1 }}>
+                    <T v="label">{o.title}</T>
+                    <T v="small" style={{ fontSize: 12 }}>{o.code} · {o.details}</T>
+                  </View>
+                  <Button title="Apply" kind="secondary" loading={applying === o.code} disabled={applying !== null} onPress={() => applyCode(o.code)} style={{ minHeight: 40, paddingHorizontal: 14 }} />
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TextInput
+                  value={codeInput}
+                  onChangeText={(t) => setCodeInput(t.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 20))}
+                  placeholder="Have a promo code?"
+                  placeholderTextColor={c.muted}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  accessibilityLabel="Promo code"
+                  onSubmitEditing={() => codeInput.length >= 3 && applyCode(codeInput)}
+                  style={[styles.input, { flex: 1, borderColor: c.field, color: c.ink, backgroundColor: c.card }]}
+                />
+                <Button title="Apply" kind="secondary" loading={applying === codeInput && codeInput !== ''} disabled={codeInput.length < 3 || applying !== null} onPress={() => applyCode(codeInput)} style={{ minWidth: 90 }} />
+              </View>
+            </>
+          )}
+          {promoErr && <T v="small" style={{ color: c.brandInk }}>{promoErr}</T>}
         </Card>
 
         <Card style={{ gap: 12 }}>
@@ -208,12 +280,12 @@ export default function Checkout() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, color }: { label: string; value: string; color?: string }) {
   const c = useColors();
   return (
     <View style={[styles.row, { marginTop: 8 }]}>
-      <T style={{ color: c.ink2 }}>{label}</T>
-      <T style={{ color: c.ink2 }}>{value}</T>
+      <T style={{ color: color ?? c.ink2 }}>{label}</T>
+      <T style={{ color: color ?? c.ink2 }}>{value}</T>
     </View>
   );
 }
@@ -222,6 +294,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   divider: { height: 1, marginVertical: 12 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, height: 50, fontSize: 16, fontFamily: fonts.regular },
+  offer: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12 },
+  applied: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, padding: 12 },
   upi: { flex: 1, alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 12, paddingVertical: 10 },
   upiDot: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },

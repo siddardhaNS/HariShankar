@@ -37,7 +37,7 @@ function RootStack() {
       <Stack.Screen name="booking/[id]" />
       <Stack.Screen name="login" options={{ presentation: 'modal' }} />
       <Stack.Screen name="profile" />
-      <Stack.Screen name="staff/index" />
+      <Stack.Screen name="staff/gate" />
       <Stack.Screen name="staff/login" />
     </Stack>
   );
