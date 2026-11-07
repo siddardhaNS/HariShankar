@@ -7,6 +7,7 @@ from app.routers import (
     admin_bookings,
     admin_catalog,
     admin_promotions,
+    admin_reports,
     admin_shows,
     admin_staff,
     app_auth,
@@ -35,6 +36,7 @@ app.include_router(admin_catalog.router)
 app.include_router(admin_shows.router)
 app.include_router(admin_bookings.router)
 app.include_router(admin_promotions.router)
+app.include_router(admin_reports.router)
 
 # Customer app
 app.include_router(app_auth.router)

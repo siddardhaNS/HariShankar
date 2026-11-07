@@ -148,3 +148,57 @@ export type Promotion = {
   discount_given_paise: number;
   created_at: string;
 };
+
+export type ReportTotals = {
+  date: string | null;
+  shows: number;
+  cancelled_shows: number;
+  seats_total: number;
+  bookings: number;
+  seats_sold: number;
+  admitted: number;
+  tickets_paise: number;
+  discount_paise: number;
+  fee_paise: number;
+  gst_paise: number;
+  collected_paise: number;
+  refunded_paise: number;
+  refunds_to_send: number;
+};
+
+export type ReportShow = Omit<ReportTotals, "date" | "shows" | "cancelled_shows"> & {
+  id: string;
+  date: string;
+  starts_at: string;
+  label: string;
+  movie_title: string;
+  status: "scheduled" | "cancelled";
+};
+
+export type Report = { start: string; end: string; days: ReportTotals[]; shows: ReportShow[]; totals: ReportTotals };
+
+export type Bar = { label: string; value: number; note: string };
+
+export type Insights = {
+  start: string;
+  end: string;
+  summary: {
+    shows: number;
+    occupancy: number;
+    seats_sold: number;
+    bookings: number;
+    customers: number;
+    new_customers: number;
+    repeat_customers: number;
+    avg_group: number;
+    promo_bookings: number;
+    promo_discount_paise: number;
+  };
+  by_slot: Bar[];
+  by_weekday: Bar[];
+  lead_time: Bar[];
+  group_size: Bar[];
+  gender: Bar[];
+  age: Bar[];
+  movies: { title: string; shows: number; seats_sold: number; occupancy: number; collected_paise: number }[];
+};

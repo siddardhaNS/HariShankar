@@ -323,3 +323,91 @@ class PromotionOut(PromotionIn):
     uses: int                  # paid bookings with this code
     discount_given_paise: int  # total taken off those bookings
     created_at: datetime
+
+
+# ---------- Reports and insights ----------
+
+
+class ReportTotals(BaseModel):
+    date: date | None
+    shows: int
+    cancelled_shows: int
+    seats_total: int
+    bookings: int
+    seats_sold: int
+    admitted: int
+    tickets_paise: int       # ticket prices before discount
+    discount_paise: int
+    fee_paise: int
+    gst_paise: int           # GST on the booking fee
+    collected_paise: int     # what customers paid for bookings that stand
+    refunded_paise: int      # paid, then given back
+    refunds_to_send: int     # direct UPI refunds staff still have to send
+
+
+class ReportShow(BaseModel):
+    id: uuid.UUID
+    date: date
+    starts_at: datetime
+    label: str
+    movie_title: str
+    status: ShowStatus
+    seats_total: int
+    bookings: int
+    seats_sold: int
+    admitted: int
+    tickets_paise: int
+    discount_paise: int
+    fee_paise: int
+    gst_paise: int
+    collected_paise: int
+    refunded_paise: int
+    refunds_to_send: int
+
+
+class ReportOut(BaseModel):
+    start: date
+    end: date
+    days: list[ReportTotals]
+    shows: list[ReportShow]
+    totals: ReportTotals
+
+
+class Bar(BaseModel):
+    label: str
+    value: float
+    note: str = ""
+
+
+class MovieInsight(BaseModel):
+    title: str
+    shows: int
+    seats_sold: int
+    occupancy: int
+    collected_paise: int
+
+
+class InsightSummary(BaseModel):
+    shows: int
+    occupancy: int
+    seats_sold: int
+    bookings: int
+    customers: int
+    new_customers: int
+    repeat_customers: int
+    avg_group: float
+    promo_bookings: int
+    promo_discount_paise: int
+
+
+class InsightsOut(BaseModel):
+    start: date
+    end: date
+    summary: InsightSummary
+    by_slot: list[Bar]
+    by_weekday: list[Bar]
+    lead_time: list[Bar]
+    group_size: list[Bar]
+    gender: list[Bar]
+    age: list[Bar]
+    movies: list[MovieInsight]
