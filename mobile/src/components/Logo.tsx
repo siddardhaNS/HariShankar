@@ -1,56 +1,60 @@
 import { View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { T } from '@/components/ui';
 import { fonts } from '@/lib/theme';
 
 /*
- * The Hari Shankar mark: a theatre arch (the palace, and the curve of the
- * screen) over a stage, with a play button in the middle. Drawn on a 100 x 100
- * grid; scripts/make-icons.mjs draws the same shapes for the app icon.
+ * The Hari Shankar mark: a theatre stage. Red curtains drawn back under a
+ * scalloped valance with a gold trim, and a warm spotlight on the stage floor,
+ * in a dark house. Drawn on a 100 x 100 grid; scripts/make-icons.mjs draws the
+ * same shapes for the app icon.
  */
-export const MARK = {
-  arch: 'M22 66V46a28 22 0 0 1 56 0v20', // stroke 7, round caps
-  play: 'M44.5 39v22l18-11Z',             // fill + stroke 4, round joins (soft corners)
-  stage: 'M15 76h70',                     // stroke 6, round caps
+export const STAGE = {
+  leftCurtain: 'M14 16h17c-2 22-1 44 3 68H14Z',
+  rightCurtain: 'M86 16H69c2 22 1 44-3 68h20Z',
+  folds: 'M21 26c-1 18 0 38 2 56M27 26c-1 18 0 38 2 56M79 26c1 18 0 38-2 56M73 26c1 18 0 38-2 56',
+  valance: 'M14 16h72v9c-4.5 4.4-13.5 4.4-18 0-4.5 4.4-13.5 4.4-18 0-4.5 4.4-13.5 4.4-18 0-4.5 4.4-13.5 4.4-18 0Z',
+  trim: 'M14 16h72',
+  floor: 'M10 86h80',
 };
 
-function Glyph({ color }: { color: string }) {
+export const BRAND = { red: '#D7263D', deep: '#9E1730', house: '#141631', gold: '#F6C453' };
+
+/** The stage, in colour. `id` keeps gradient ids unique when several are on screen. */
+export function StageScene({ id = 'hs' }: { id?: string }) {
   return (
     <>
-      <Path d={MARK.arch} fill="none" stroke={color} strokeWidth={7} strokeLinecap="round" />
-      <Path d={MARK.play} fill={color} stroke={color} strokeWidth={4} strokeLinejoin="round" />
-      <Path d={MARK.stage} stroke={color} strokeWidth={6} strokeLinecap="round" />
+      <Defs>
+        <LinearGradient id={`${id}Curtain`} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={BRAND.red} />
+          <Stop offset="1" stopColor={BRAND.deep} />
+        </LinearGradient>
+        <RadialGradient id={`${id}Light`} cx="50" cy="84" r="34" gradientUnits="userSpaceOnUse">
+          <Stop offset="0" stopColor={BRAND.gold} stopOpacity={0.6} />
+          <Stop offset="1" stopColor={BRAND.gold} stopOpacity={0} />
+        </RadialGradient>
+      </Defs>
+      <Rect x="14" y="16" width="72" height="68" fill={`url(#${id}Light)`} />
+      <Path d={STAGE.leftCurtain} fill={`url(#${id}Curtain)`} />
+      <Path d={STAGE.rightCurtain} fill={`url(#${id}Curtain)`} />
+      <Path d={STAGE.folds} stroke={BRAND.deep} strokeWidth={1.6} fill="none" strokeLinecap="round" opacity={0.9} />
+      <Path d={STAGE.valance} fill={BRAND.red} />
+      <Path d={STAGE.trim} stroke={BRAND.gold} strokeWidth={3} />
+      <Path d={STAGE.floor} stroke={BRAND.gold} strokeWidth={5} strokeLinecap="round" />
     </>
   );
 }
 
-export const BRAND = { red: '#D7263D', deep: '#9E1730' };
-
-/** App-icon style: white arch on a red tile. */
+/** App-icon style: the stage on a dark tile. */
 export function LogoMark({ size = 56, style }: { size?: number; style?: StyleProp<ViewStyle> }) {
   return (
     <View style={style} accessibilityRole="image" accessibilityLabel="Hari Shankar Picture Palace">
       <Svg width={size} height={size} viewBox="0 0 100 100">
-        <Defs>
-          <LinearGradient id="hsTile" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={BRAND.red} />
-            <Stop offset="1" stopColor={BRAND.deep} />
-          </LinearGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100" height="100" rx="24" fill="url(#hsTile)" />
-        <Glyph color="#FFFFFF" />
+        <Rect x="0" y="0" width="100" height="100" rx="24" fill={BRAND.house} />
+        <StageScene id={`mark${size}`} />
       </Svg>
     </View>
-  );
-}
-
-/** Just the mark, for placing on a coloured background (login hero, splash). */
-export function LogoGlyph({ size = 56, color = '#FFFFFF' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityLabel="Hari Shankar Picture Palace">
-      <Glyph color={color} />
-    </Svg>
   );
 }
 

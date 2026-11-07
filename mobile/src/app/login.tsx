@@ -3,9 +3,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import { BRAND, LogoGlyph, MARK, Wordmark } from '@/components/Logo';
+import { BRAND, LogoMark, Wordmark } from '@/components/Logo';
 import { Banner, Button, T } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -88,7 +88,7 @@ export default function Login() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: BRAND.deep }}>
+    <View style={{ flex: 1, backgroundColor: BRAND.house }}>
       <StatusBar style="light" />
       <Backdrop />
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
@@ -98,7 +98,7 @@ export default function Login() {
           bounces={false}
         >
           {/* Hero */}
-          <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 24, paddingBottom: 28 }}>
+          <View style={{ paddingTop: insets.top + 30, paddingHorizontal: 54, paddingBottom: 30 }}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close"
@@ -110,7 +110,7 @@ export default function Login() {
             </Pressable>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 }}>
-              <LogoGlyph size={56} />
+              <LogoMark size={56} style={styles.markShadow} />
               <Wordmark color="#FFFFFF" size={22} />
             </View>
 
@@ -253,31 +253,38 @@ export default function Login() {
   );
 }
 
-/** Brand gradient with the arch drawn large and faint behind the hero. */
+/** Inside the theatre: dark house, red curtains at the sides, a valance on top, a spotlight. */
 function Backdrop() {
+  // Stretched to the screen (preserveAspectRatio none): fabric and light stretch well
+  const folds = (x: number, dir: 1 | -1) =>
+    [3, 6].map((d) => `M${x + dir * d} 14c${dir * -0.6} 40 0 80 ${dir * 1.2} 186`).join('');
   return (
-    <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 200" preserveAspectRatio="xMidYMin slice">
+    <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 200" preserveAspectRatio="none">
       <Defs>
-        <LinearGradient id="loginBg" x1="0" y1="0" x2="1" y2="1">
+        <LinearGradient id="curtain" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor={BRAND.red} />
           <Stop offset="1" stopColor={BRAND.deep} />
         </LinearGradient>
+        <RadialGradient id="spot" cx="50" cy="62" rx="46" ry="40" gradientUnits="userSpaceOnUse">
+          <Stop offset="0" stopColor={BRAND.gold} stopOpacity={0.22} />
+          <Stop offset="1" stopColor={BRAND.gold} stopOpacity={0} />
+        </RadialGradient>
       </Defs>
-      <Rect width="100" height="200" fill="url(#loginBg)" />
+      <Rect width="100" height="200" fill={BRAND.house} />
+      <Rect width="100" height="200" fill="url(#spot)" />
+      <Path d="M0 0h10c-1.5 60-1 130 2 200H0Z" fill="url(#curtain)" />
+      <Path d="M100 0H90c1.5 60 1 130-2 200h12Z" fill="url(#curtain)" />
+      <Path d={folds(0, 1) + folds(100, -1)} stroke={BRAND.deep} strokeWidth={0.5} fill="none" />
       <Path
-        d={MARK.arch}
-        transform="translate(38 -6) scale(1.1)"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeOpacity={0.08}
-        strokeWidth={7}
-        strokeLinecap="round"
+        d="M0 0h100v9c-3.1 3-9.4 3-12.5 0-3.1 3-9.4 3-12.5 0-3.1 3-9.4 3-12.5 0-3.1 3-9.4 3-12.5 0-3.1 3-9.4 3-12.5 0-3.1 3-9.4 3-12.5 0-3.1 3-9.4 3-12.5 0-3.1 3-9.4 3-12.5 0Z"
+        fill={BRAND.red}
       />
     </Svg>
   );
 }
 
 const styles = StyleSheet.create({
+  markShadow: { borderRadius: 14, borderWidth: 1, borderColor: 'rgba(246,196,83,0.35)' },
   close: { alignSelf: 'flex-end', width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   headline: { fontFamily: 'RobotoCondensed_700Bold', fontSize: 44, lineHeight: 46, color: '#FFFFFF', marginTop: 34, textTransform: 'uppercase' },
   tagline: { fontFamily: 'Roboto_400Regular', fontSize: 16, lineHeight: 23, color: 'rgba(255,255,255,0.86)', marginTop: 10, maxWidth: 320 },
