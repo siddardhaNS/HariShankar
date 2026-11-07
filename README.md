@@ -50,6 +50,10 @@ Over Wi-Fi instead of USB, put `EXPO_PUBLIC_API_URL=http://<your computer's LAN 
 
 **Payments (development):** the gateway isn't chosen yet, so after *Pay* the app shows a **Test payment** screen. *Payment succeeds* runs the same server-side confirmation the real gateway webhook will, including the seat-clash refund.
 
+### Gate scanner (staff)
+
+In the app: Profile, or the login screen, then *Theatre staff? Open the gate scanner*. Staff log in with the same mobile number and PIN as the admin website (Owner, Manager or Gate staff). The scanner reads the ticket QR, checks its signature, and shows a big result: let in, already in, not paid, wrong show, too early, fake. Groups can enter in parts (2 now, 2 later); a wrong tap can be undone by the same person within 5 minutes. No QR? Type the booking ID. Gates open 60 minutes before the show.
+
 API docs: http://localhost:8000/docs
 
 ### Tests
@@ -87,5 +91,5 @@ Server side: OTP codes are stored hashed, expire in 5 minutes, max 5 sends an ho
 2. ~~Customer app (React Native, Android): OTP login, Now showing, seat map, checkout, e-ticket, My tickets~~ (SMS and payment gateway to be plugged in)
 3. Admin: seat layout, movies, show timings and prices, block rows, cancel a show
 4. Razorpay: orders, webhook confirmation, automatic and manual refunds, booking fee and GST
-5. Gate scanner in the admin web (QR, booking ID fallback, partial entry)
+5. ~~Gate scanner in the Android app (QR, booking ID fallback, partial entry)~~
 6. WhatsApp messages, ratings, promotions, insights and reports

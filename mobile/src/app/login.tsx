@@ -104,6 +104,7 @@ export default function Login() {
             </View>
             {err && <View style={{ marginTop: 14 }}><Banner kind="error">{err}</Banner></View>}
             <Button title="Send code" onPress={sendCode} disabled={!valid} loading={busy} style={{ marginTop: 20 }} />
+            <Button title="Theatre staff? Open the gate scanner" kind="ghost" onPress={() => router.replace('/staff')} style={{ marginTop: 18 }} />
           </>
         ) : (
           <>

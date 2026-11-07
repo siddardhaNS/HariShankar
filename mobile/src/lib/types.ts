@@ -120,3 +120,64 @@ export type Customer = {
 };
 
 export type PayMethod = 'upi' | 'card' | 'netbanking';
+
+// ---------- Gate (staff) ----------
+
+export type StaffRole = 'owner' | 'manager' | 'gate' | 'super_admin';
+
+export type StaffUser = {
+  id: string;
+  name: string;
+  mobile: string;
+  role: StaffRole;
+  must_change_pin: boolean;
+};
+
+export type StaffLogin = {
+  user: StaffUser;
+  theatre: { id: string; name: string; city: string } | null;
+  access_token: string;
+};
+
+export type GateShow = {
+  id: string;
+  movie_title: string;
+  label: string;
+  starts_at: string;
+  ends_at: string;
+  status: 'scheduled' | 'cancelled';
+  gate_open: boolean;
+  seats_sold: number;
+  seats_admitted: number;
+};
+
+export type GateVerdict =
+  | 'ok'
+  | 'all_in'
+  | 'not_paid'
+  | 'cancelled'
+  | 'other_show'
+  | 'too_early'
+  | 'show_over'
+  | 'not_found'
+  | 'fake';
+
+export type GateEntry = { id: string; count: number; at: string; by: string; can_undo: boolean };
+
+export type GateTicket = {
+  verdict: GateVerdict;
+  message: string;
+  booking_id: string | null;
+  code: string | null;
+  customer_name: string;
+  mobile_last4: string;
+  movie_title: string;
+  show_id: string | null;
+  show_label: string;
+  starts_at: string | null;
+  seats: string[];
+  seats_total: number;
+  seats_admitted: number;
+  seats_left: number;
+  entries: GateEntry[];
+};

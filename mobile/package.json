@@ -7,6 +7,7 @@
     "@expo-google-fonts/roboto-condensed": "^0.4.2",
     "@expo/ui": "~58.0.27",
     "expo": "~58.0.23",
+    "expo-camera": "~58.0.14",
     "expo-constants": "~58.0.15",
     "expo-device": "~58.0.5",
     "expo-font": "~58.0.11",

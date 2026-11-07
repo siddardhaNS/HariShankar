@@ -12,6 +12,7 @@ from app.routers import (
     app_bookings,
     app_catalog,
     dev_payments,
+    gate,
 )
 
 settings = get_settings()
@@ -36,6 +37,9 @@ app.include_router(admin_bookings.router)
 app.include_router(app_auth.router)
 app.include_router(app_catalog.router)
 app.include_router(app_bookings.router)
+
+# Gate staff (scanner in the Android app)
+app.include_router(gate.router)
 if settings.is_dev:  # test payments, never in production
     app.include_router(dev_payments.router)
 

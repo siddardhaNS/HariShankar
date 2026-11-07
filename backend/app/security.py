@@ -52,11 +52,26 @@ def decode_customer_token(token: str) -> dict:
     return jwt.decode(token, s.jwt_secret, algorithms=[s.jwt_algorithm], audience="customer")
 
 
+QR_PREFIX = "HSPP1."
+
+
+def _ticket_sig(code: str) -> str:
+    return hmac.new(get_settings().jwt_secret.encode(), f"ticket:{code}".encode(), hashlib.sha256).hexdigest()[:12]
+
+
 def ticket_qr(code: str) -> str:
     """QR payload: booking code + signature, so the gate scanner (including a
     future offline one) can tell a real ticket from a typed-up one."""
-    sig = hmac.new(get_settings().jwt_secret.encode(), f"ticket:{code}".encode(), hashlib.sha256).hexdigest()[:12]
-    return f"HSPP1.{code}.{sig}"
+    return f"{QR_PREFIX}{code}.{_ticket_sig(code)}"
+
+
+def read_ticket_qr(text: str) -> str | None:
+    """Booking code from a scanned QR, or None if the signature doesn't match."""
+    parts = text.strip().split(".")
+    if len(parts) != 3 or f"{parts[0]}." != QR_PREFIX:
+        return None
+    code, sig = parts[1], parts[2]
+    return code if hmac.compare_digest(sig, _ticket_sig(code)) else None
 
 
 def decode_admin_token(token: str) -> dict:

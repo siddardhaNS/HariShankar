@@ -127,6 +127,8 @@ export default function Profile() {
           <T v="small" style={{ fontSize: 12 }}>Your tickets always come with a booking, whatever you choose here.</T>
         </Card>
 
+        <Button title="Gate scanner (theatre staff)" kind="secondary" onPress={() => router.push('/staff')} />
+
         <Button
           title="Log out"
           kind="ghost"

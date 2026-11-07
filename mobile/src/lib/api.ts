@@ -6,6 +6,18 @@ const TIMEOUT_MS = 15_000;
 
 let authToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
+// Gate staff log in separately (mobile + PIN), so a staff login and a customer
+// login on the same phone never get mixed up.
+let staffToken: string | null = null;
+let onStaffUnauthorized: (() => void) | null = null;
+
+export function setStaffToken(token: string | null) {
+  staffToken = token;
+}
+
+export function setStaffUnauthorizedHandler(fn: (() => void) | null) {
+  onStaffUnauthorized = fn;
+}
 
 export function setAuthToken(token: string | null) {
   authToken = token;
@@ -32,10 +44,14 @@ function readError(body: unknown, status: number): string {
   return status >= 500 ? 'Something went wrong on our side. Please try again' : 'Something went wrong';
 }
 
-export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T>(
+  path: string,
+  init: { method?: string; body?: unknown; as?: 'customer' | 'staff' } = {},
+): Promise<T> {
+  const token = init.as === 'staff' ? staffToken : authToken;
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (init.body !== undefined) headers['Content-Type'] = 'application/json';
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -54,7 +70,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   }
 
   const body = await res.json().catch(() => null);
-  if (res.status === 401 && authToken) onUnauthorized?.();
+  if (res.status === 401 && token) (init.as === 'staff' ? onStaffUnauthorized : onUnauthorized)?.();
   if (!res.ok) throw new ApiError(res.status, readError(body, res.status), body);
   return body as T;
 }
