@@ -33,7 +33,8 @@ class Message(IdMixin, Base):
     __tablename__ = "messages"
 
     theatre_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("theatres.id"), index=True)
-    customer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), index=True)
+    # None for messages to staff (the owner's Monday summary)
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), index=True)
     mobile: Mapped[str] = mapped_column(String(10))
     channel: Mapped[str] = mapped_column(String(10), default="whatsapp", server_default="whatsapp")  # whatsapp | push
     kind: Mapped[str] = mapped_column(String(24), index=True)  # booking_confirmed | reminder_morning | ...

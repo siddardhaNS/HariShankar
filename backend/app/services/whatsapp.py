@@ -271,6 +271,8 @@ def queue_campaign(db: Session, c: Campaign) -> int:
 
 def _still_wanted(db: Session, m: Message, now: datetime) -> tuple[bool, str | None, datetime | None]:
     """(send it?, why skipped, or a later time to try)."""
+    if m.customer_id is None:  # to staff: only the owner's weekly summary
+        return (True, None, None) if m.kind == "weekly_summary" else (False, "no customer", None)
     customer = db.get(Customer, m.customer_id)
     if customer is None:
         return False, "customer gone", None

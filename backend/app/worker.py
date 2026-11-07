@@ -8,7 +8,7 @@ import logging
 import time
 
 from app.db import SessionLocal
-from app.services import bookings, push, whatsapp
+from app.services import bookings, insights, push, whatsapp
 
 log = logging.getLogger("worker")
 EVERY_SECONDS = 30
@@ -18,6 +18,7 @@ def tick() -> int:
     with SessionLocal() as db:
         bookings.expire_abandoned(db)
         whatsapp.queue_reminders(db)
+        insights.queue_weekly_summaries(db)
         db.commit()
         sent = whatsapp.send_due(db, whatsapp.get_sender(), push_sender=push.get_push_sender())
         db.commit()

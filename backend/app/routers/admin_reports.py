@@ -1,8 +1,9 @@
 """Admin: Reports and Insights (owner only)."""
+import uuid
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -10,7 +11,9 @@ from app.deps import require_roles
 from app.models import StaffUser, Theatre
 from app.models.enums import StaffRole
 from app.schemas.admin import InsightsOut, ReportOut
+from app.services import insights as insights_svc
 from app.services import reports
+from app.services.reports import SLOTS, Filters
 
 router = APIRouter(prefix="/api/admin", tags=["admin reports"])
 owner_only = require_roles(StaffRole.owner)
@@ -37,9 +40,32 @@ def report(start: date | None = Query(default=None), end: date | None = Query(de
     return reports.report(db, user.theatre_id, s, e)
 
 
+def _filters(movie_id: uuid.UUID | None, slot: str | None, class_id: uuid.UUID | None) -> Filters:
+    if slot and slot not in SLOTS:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Show time is one of: {', '.join(SLOTS)}")
+    return Filters(movie_id=movie_id, slot=slot or None, class_id=class_id)
+
+
 @router.get("/insights", response_model=InsightsOut)
 def insights(start: date | None = Query(default=None), end: date | None = Query(default=None),
+             movie_id: uuid.UUID | None = None, slot: str | None = Query(default=None, max_length=20),
+             class_id: uuid.UUID | None = None,
              user: StaffUser = Depends(owner_only), db: Session = Depends(get_db)):
-    """Who books, when, and what fills the hall. Defaults to the last 30 days."""
+    """Who books, when, and what fills the hall. Defaults to the last 30 days.
+    Filter by movie, show time (Morning, Matinee, First show, Second show) and class."""
     s, e = _range(db, user, start, end, 30)
-    return reports.insights(db, user.theatre_id, s, e)
+    return insights_svc.full(db, user.theatre_id, s, e, _filters(movie_id, slot, class_id))
+
+
+@router.get("/insights.xlsx")
+def insights_excel(start: date | None = Query(default=None), end: date | None = Query(default=None),
+                   movie_id: uuid.UUID | None = None, slot: str | None = Query(default=None, max_length=20),
+                   class_id: uuid.UUID | None = None,
+                   user: StaffUser = Depends(owner_only), db: Session = Depends(get_db)):
+    """The same Insights as an Excel file, one sheet per view."""
+    s, e = _range(db, user, start, end, 30)
+    data = insights_svc.full(db, user.theatre_id, s, e, _filters(movie_id, slot, class_id))
+    theatre = db.get(Theatre, user.theatre_id)
+    body = insights_svc.to_excel(data, theatre.name if theatre else "")
+    return Response(body, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="insights-{s}-to-{e}.xlsx"'})

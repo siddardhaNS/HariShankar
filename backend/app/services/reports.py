@@ -48,24 +48,42 @@ class ShowRow:
     confirmed: list[Booking] = field(default_factory=list)
 
 
-def load(db: Session, theatre_id: uuid.UUID, start: date, end: date) -> tuple[ZoneInfo, list[ShowRow]]:
+@dataclass
+class Filters:
+    """Insights filters. With a class picked, seats and ticket money count only that class."""
+    movie_id: uuid.UUID | None = None
+    slot: str | None = None          # Morning | Matinee | First show | Second show
+    class_id: uuid.UUID | None = None
+
+
+def load(db: Session, theatre_id: uuid.UUID, start: date, end: date,
+         f: Filters | None = None) -> tuple[ZoneInfo, list[ShowRow]]:
+    f = f or Filters()
     theatre = db.get(Theatre, theatre_id)
     tz = ZoneInfo(theatre.timezone if theatre else "Asia/Kolkata")
     lo = datetime.combine(start, time.min, tz)
     hi = datetime.combine(end + timedelta(days=1), time.min, tz)
-    shows = db.execute(
-        select(Show, Movie.title).join(Movie, Movie.id == Show.movie_id)
-        .where(Show.theatre_id == theatre_id, Show.starts_at >= lo, Show.starts_at < hi).order_by(Show.starts_at)
-    ).all()
+    q = (select(Show, Movie.title).join(Movie, Movie.id == Show.movie_id)
+         .where(Show.theatre_id == theatre_id, Show.starts_at >= lo, Show.starts_at < hi).order_by(Show.starts_at))
+    if f.movie_id:
+        q = q.where(Show.movie_id == f.movie_id)
+    shows = [(s, t) for s, t in db.execute(q).all() if not f.slot or show_label(s.starts_at, tz) == f.slot]
     if not shows:
         return tz, []
-    hall = dict(db.execute(select(Seat.screen_id, func.count()).where(Seat.theatre_id == theatre_id)
-                           .group_by(Seat.screen_id)).all())
+    hall_q = select(Seat.screen_id, func.count()).where(Seat.theatre_id == theatre_id, Seat.is_active.is_(True))
+    if f.class_id:
+        hall_q = hall_q.where(Seat.seat_class_id == f.class_id)
+    hall = dict(db.execute(hall_q.group_by(Seat.screen_id)).all())
     rows = {s.id: ShowRow(show=s, title=t, label=show_label(s.starts_at, tz), day=s.starts_at.astimezone(tz).date(),
                           seats_total=hall.get(s.screen_id, 0)) for s, t in shows}
     ids = list(rows)
-    seats = dict(db.execute(select(BookingSeat.booking_id, func.count()).join(Booking, Booking.id == BookingSeat.booking_id)
-                            .where(Booking.show_id.in_(ids)).group_by(BookingSeat.booking_id)).all())
+    seat_q = (select(BookingSeat.booking_id, func.count(), func.sum(BookingSeat.price_paise))
+              .join(Booking, Booking.id == BookingSeat.booking_id).where(Booking.show_id.in_(ids)))
+    if f.class_id:
+        seat_q = seat_q.join(Seat, Seat.id == BookingSeat.seat_id).where(Seat.seat_class_id == f.class_id)
+    seats, class_money = {}, {}
+    for bid, n, money in db.execute(seat_q.group_by(BookingSeat.booking_id)):
+        seats[bid], class_money[bid] = n, int(money or 0)
     for sid, n in db.execute(select(Entry.show_id, func.sum(Entry.count)).where(Entry.show_id.in_(ids))
                              .group_by(Entry.show_id)):
         rows[sid].admitted = int(n or 0)
@@ -78,10 +96,16 @@ def load(db: Session, theatre_id: uuid.UUID, start: date, end: date) -> tuple[Zo
                 r.refunds_to_send += int(b.refund_pending)
             continue
         n = seats.get(b.id, 0)
+        if f.class_id and n == 0:
+            continue  # no seats in the class picked
         b._seat_count = n  # type: ignore[attr-defined]
         r.confirmed.append(b)
         r.bookings += 1
         r.seats_sold += n
+        if f.class_id:  # only the ticket price of that class's seats
+            r.tickets_paise += class_money.get(b.id, 0)
+            r.collected_paise += class_money.get(b.id, 0)
+            continue
         r.tickets_paise += b.tickets_paise
         r.discount_paise += b.discount_paise
         r.fee_paise += b.booking_fee_paise
@@ -124,8 +148,8 @@ def _bar(labels: list[str], values: dict[str, float], extra: dict[str, str] | No
     return [{"label": k, "value": values.get(k, 0), "note": (extra or {}).get(k, "")} for k in labels]
 
 
-def insights(db: Session, theatre_id: uuid.UUID, start: date, end: date) -> dict:
-    tz, rows = load(db, theatre_id, start, end)
+def insights(db: Session, theatre_id: uuid.UUID, start: date, end: date, f: Filters | None = None) -> dict:
+    tz, rows = load(db, theatre_id, start, end, f)
     live = [r for r in rows if r.show.status == ShowStatus.scheduled]
 
     def fill(groups: dict[str, list[ShowRow]], order: list[str]) -> list[dict]:

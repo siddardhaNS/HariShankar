@@ -16,6 +16,7 @@ const KINDS: Record<string, string> = {
   refunded: "Refund",
   refund_sent: "Refund sent",
   promotion: "Offer",
+  weekly_summary: "Weekly summary",
 };
 const AUDIENCE: Record<Audience, string> = { all: "Everyone opted in", recent_90: "Last 90 days", recent_30: "Last 30 days" };
 const CHANNEL: Record<Channel, string> = { whatsapp: "WhatsApp", push: "App notification", both: "WhatsApp and app" };

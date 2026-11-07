@@ -3,7 +3,8 @@ import { addDays, dayLong, istDate } from "@/lib/format";
 import type { Bar } from "@/lib/types";
 
 /** Date range for Reports and Insights: quick picks plus a custom from/to form (plain GET, so the URL can be shared). */
-export function RangePicker({ path, start, end, note }: { path: string; start: string; end: string; note?: string }) {
+export function RangePicker({ path, start, end, note, keep = {} }: { path: string; start: string; end: string; note?: string; keep?: Record<string, string> }) {
+  const extra = Object.entries(keep).filter(([, v]) => v).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join("");
   const today = istDate();
   const monthStart = `${today.slice(0, 8)}01`;
   const lastMonthEnd = addDays(monthStart, -1);
@@ -22,7 +23,7 @@ export function RangePicker({ path, start, end, note }: { path: string; start: s
           return (
             <Link
               key={p.label}
-              href={`${path}?start=${p.start}&end=${p.end}`}
+              href={`${path}?start=${p.start}&end=${p.end}${extra}`}
               aria-current={on ? "true" : undefined}
               className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${on ? "border-ink bg-ink text-white" : "border-line bg-white text-ink-2 hover:border-ink-2"}`}
             >
@@ -32,6 +33,7 @@ export function RangePicker({ path, start, end, note }: { path: string; start: s
         })}
       </div>
       <form action={path} className="flex flex-wrap items-end gap-2">
+        {Object.entries(keep).filter(([, v]) => v).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
         <label className="text-xs font-medium text-ink-2">
           From
           <input type="date" name="start" defaultValue={start} max={today} className="field mt-1 h-9 w-40 py-1" />

@@ -224,6 +224,7 @@ export type Insights = {
     avg_group: number;
     promo_bookings: number;
     promo_discount_paise: number;
+    same_day_bookings: number;
   };
   by_slot: Bar[];
   by_weekday: Bar[];
@@ -234,6 +235,22 @@ export type Insights = {
   movies: { title: string; shows: number; seats_sold: number; occupancy: number; collected_paise: number; rating: number | null; ratings: number }[];
   stars: Bar[];
   comments: { movie_title: string; stars: number; comment: string; at: string }[];
+  filters: { movie_id: string | null; slot: string | null; class_id: string | null };
+  booking_hour: Bar[];
+  booking_weekday: Bar[];
+  slot_week: { slot: string; weekday: number; weekend: number; weekday_shows: number; weekend_shows: number; sold_out: number }[];
+  sell_outs: { movie_title: string; starts_at: string; label: string; occupancy: number; hours_before: number }[];
+  movie_weeks: { title: string; weeks: { week: number; shows: number; seats_sold: number; occupancy: number; collected_paise: number }[] }[];
+  class_demand: { name: string; seats: number; occupancy: number; seats_sold: number; median_days_before: number | null }[];
+  row_demand: Bar[];
+  rarely_sold: { seat: string; sold: number; shows: number }[];
+  visits: Bar[];
+  regulars: { name: string; mobile_end: string; bookings: number; last_booked: string | null }[];
+  lapsed_customers: number;
+  offers: { code: string; title: string; bookings: number; seats: number; discount_paise: number; collected_paise: number }[];
+  campaigns: { title: string; channel: Channel; send_after: string; recipients: number; reached: number; led_to_booking: number }[];
+  offers_opt: { on: number; off: number };
+  payments: { methods: Bar[]; failed: number; abandoned: number; seat_clashes: number; refunds: Bar[]; refunded_paise: number };
 };
 
 export type Audience = "all" | "recent_30" | "recent_90";

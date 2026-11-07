@@ -417,6 +417,7 @@ class InsightSummary(BaseModel):
     avg_group: float
     promo_bookings: int
     promo_discount_paise: int
+    same_day_bookings: int = 0
 
 
 class RatingComment(BaseModel):
@@ -439,6 +440,110 @@ class InsightsOut(BaseModel):
     movies: list[MovieInsight]
     stars: list[Bar]
     comments: list[RatingComment]
+    # The fuller views (app/services/insights.py)
+    filters: "InsightFilters"
+    booking_hour: list[Bar]
+    booking_weekday: list[Bar]
+    slot_week: list["SlotWeek"]
+    sell_outs: list["SellOut"]
+    movie_weeks: list["MovieWeeks"]
+    class_demand: list["ClassDemand"]
+    row_demand: list[Bar]
+    rarely_sold: list["RarelySold"]
+    visits: list[Bar]
+    regulars: list["Regular"]
+    lapsed_customers: int
+    offers: list["OfferResult"]
+    campaigns: list["CampaignResult"]
+    offers_opt: dict[str, int]
+    payments: "PaymentsInsight"
+
+
+class InsightFilters(BaseModel):
+    movie_id: uuid.UUID | None = None
+    slot: str | None = None
+    class_id: uuid.UUID | None = None
+
+
+class SlotWeek(BaseModel):
+    slot: str
+    weekday: int
+    weekend: int
+    weekday_shows: int
+    weekend_shows: int
+    sold_out: int
+
+
+class SellOut(BaseModel):
+    movie_title: str
+    starts_at: datetime
+    label: str
+    occupancy: int
+    hours_before: float
+
+
+class MovieWeek(BaseModel):
+    week: int
+    shows: int
+    seats_sold: int
+    occupancy: int
+    collected_paise: int
+
+
+class MovieWeeks(BaseModel):
+    title: str
+    weeks: list[MovieWeek]
+
+
+class ClassDemand(BaseModel):
+    name: str
+    seats: int
+    occupancy: int
+    seats_sold: int
+    median_days_before: float | None
+
+
+class RarelySold(BaseModel):
+    seat: str
+    sold: int
+    shows: int
+
+
+class Regular(BaseModel):
+    name: str
+    mobile_end: str
+    bookings: int
+    last_booked: datetime | None
+
+
+class OfferResult(BaseModel):
+    code: str
+    title: str
+    bookings: int
+    seats: int
+    discount_paise: int
+    collected_paise: int
+
+
+class CampaignResult(BaseModel):
+    title: str
+    channel: str
+    send_after: datetime
+    recipients: int
+    reached: int
+    led_to_booking: int
+
+
+class PaymentsInsight(BaseModel):
+    methods: list[Bar]
+    failed: int
+    abandoned: int
+    seat_clashes: int
+    refunds: list[Bar]
+    refunded_paise: int
+
+
+InsightsOut.model_rebuild()
 
 
 # ---------- WhatsApp messages ----------
