@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+/* Palette taken from the HariShankar mockups */
+@theme {
+  --color-ink: #12152b;
+  --color-ink-2: #3a3f5c;
+  --color-muted: #5b6185;
+  --color-line: #e4e6ef;
+  --color-canvas: #f3f4fa;
+  --color-navy: #141631;
+  --color-navy-2: #2a2d55;
+  --color-brand: #d7263d;
+  --color-brand-dark: #b81c31;
+  --color-brand-soft: #fde8eb;
+  --color-ok: #1f8a4c;
+  --color-ok-soft: #e3f5ea;
+
+  --font-sans: var(--font-roboto), system-ui, sans-serif;
+  --font-display: var(--font-roboto-condensed), var(--font-roboto), sans-serif;
+  --font-mono: var(--font-roboto-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+}
+
+@utility field {
+  @apply w-full rounded-lg border border-[#c9ccdc] bg-white px-3.5 py-2.5 text-[15px] text-ink outline-none transition placeholder:text-[#9a9fbb] focus:border-brand focus:ring-2 focus:ring-brand/15;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[15px] font-bold transition disabled:cursor-not-allowed disabled:opacity-60;
+}
+@utility btn-primary {
+  @apply btn bg-brand text-white hover:bg-brand-dark;
+}
+@utility btn-secondary {
+  @apply btn border border-[#c9ccdc] bg-white text-ink hover:bg-canvas;
+}
+@utility card {
+  @apply rounded-2xl border border-line bg-white;
+}
