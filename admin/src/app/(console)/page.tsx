@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { api, getMe } from "@/lib/api";
 import { dayLong, pct, rupees, time } from "@/lib/format";
-import { homeFor } from "@/lib/nav";
 import type { Today } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Today" };
@@ -19,7 +17,6 @@ const SETUP: { key: keyof Today["setup"]; step: string; href: string }[] = [
 
 export default async function TodayPage() {
   const me = await getMe();
-  if (homeFor(me.user.role) !== "/") redirect(homeFor(me.user.role));
   const t = await api<Today>("/api/admin/today");
   const setupDone = Object.values(t.setup).every(Boolean);
 

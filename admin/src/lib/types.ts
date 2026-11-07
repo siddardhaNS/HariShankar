@@ -153,7 +153,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 export const ROLE_HINT: Record<Exclude<Role, "super_admin">, string> = {
   owner: "Everything",
   manager: "Movies, shows, prices, blocking",
-  gate: "Scanning only",
+  gate: "Scanning tickets in the Android app only",
 };
 
 export type TheatrePayments = { upi_id: string; upi_name: string };

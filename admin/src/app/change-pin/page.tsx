@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getMe } from "@/lib/api";
-import { homeFor } from "@/lib/nav";
 import { BrandMark } from "@/components/Brand";
 import { ChangePinForm } from "./ChangePinForm";
 
@@ -26,7 +25,7 @@ export default async function ChangePinPage() {
         </p>
         <ChangePinForm />
         {!forced && (
-          <Link href={homeFor(user.role)} className="mt-4 block text-center text-sm text-muted hover:text-ink">
+          <Link href="/" className="mt-4 block text-center text-sm text-muted hover:text-ink">
             Cancel
           </Link>
         )}

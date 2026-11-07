@@ -21,7 +21,7 @@ export default async function StaffPage() {
 
   return (
     <>
-      <PageHeader title="Staff" subtitle="Logins for the admin web and the gate scanner" />
+      <PageHeader title="Staff" subtitle="Logins for the admin web, and for the gate scanner in the app" />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <section className="card overflow-hidden">

@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-brand">Admin console</p>
           <h1 className="page-title text-6xl">Every seat,<br />every show.</h1>
           <p className="mt-5 text-[15px] leading-relaxed text-white/70">
-            Shows, prices, bookings, blocking, gate scanning and reports for the theatre, in one place.
+            Shows, prices, bookings, blocking, offers and reports for the theatre, in one place.
           </p>
         </div>
         <p className="text-xs text-white/40">Palasa</p>

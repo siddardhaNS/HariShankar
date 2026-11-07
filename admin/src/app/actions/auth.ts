@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import { homeFor } from "@/lib/nav";
+import { GATE_ON_WEB } from "@/lib/nav";
 import { clearSession, setSession } from "@/lib/session";
 import type { FormState, LoginResponse } from "@/lib/types";
 
@@ -33,9 +33,10 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
     return { error: e instanceof ApiError ? e.message : "Something went wrong" };
   }
 
+  if (res.user.role === "gate") return { error: GATE_ON_WEB };
   await setSession(res.access_token, res.expires_in);
   if (res.user.must_change_pin) redirect("/change-pin");
-  redirect(safeNext(formData.get("next")) ?? homeFor(res.user.role));
+  redirect(safeNext(formData.get("next")) ?? "/");
 }
 
 export async function logout() {
@@ -63,5 +64,5 @@ export async function changePin(_: FormState, formData: FormData): Promise<FormS
   }
   // Changing the PIN revokes old tokens; store the fresh one
   await setSession(res.access_token, res.expires_in);
-  redirect(homeFor(res.user.role));
+  redirect("/");
 }
