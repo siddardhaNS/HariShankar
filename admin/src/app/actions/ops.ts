@@ -104,7 +104,7 @@ export async function refundBooking(bookingId: string, reason: string) {
         method: "POST",
         body: JSON.stringify({ reason }),
       }),
-    ["/bookings", "/", "/shows"],
+    ["/bookings", "/refunds", "/", "/shows"],
   );
 }
 
@@ -128,7 +128,7 @@ export async function markRefundSent(bookingId: string, ref: string) {
         method: "POST",
         body: JSON.stringify({ ref }),
       }),
-    ["/bookings", "/"],
+    ["/bookings", "/refunds", "/"],
   );
 }
 
@@ -171,4 +171,8 @@ export async function sendCampaign(input: { title: string; body: string; audienc
 
 export async function cancelCampaign(id: string) {
   return run(() => api<Campaign>(`/api/admin/messages/campaigns/${encodeURIComponent(id)}/cancel`, { method: "POST" }), ["/messages"]);
+}
+
+export async function resendTicket(bookingId: string) {
+  return run(() => api<AdminBooking>(`/api/admin/bookings/${encodeURIComponent(bookingId)}/resend`, { method: "POST" }), ["/messages"]);
 }

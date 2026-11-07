@@ -3,7 +3,7 @@ import { addDays, dayLong, istDate } from "@/lib/format";
 import type { Bar } from "@/lib/types";
 
 /** Date range for Reports and Insights: quick picks plus a custom from/to form (plain GET, so the URL can be shared). */
-export function RangePicker({ path, start, end }: { path: string; start: string; end: string }) {
+export function RangePicker({ path, start, end, note }: { path: string; start: string; end: string; note?: string }) {
   const today = istDate();
   const monthStart = `${today.slice(0, 8)}01`;
   const lastMonthEnd = addDays(monthStart, -1);
@@ -43,7 +43,7 @@ export function RangePicker({ path, start, end }: { path: string; start: string;
         <button type="submit" className="btn-secondary h-9 px-3 py-1 text-sm">Show</button>
       </form>
       <p className="w-full text-sm text-muted">
-        Shows from {dayLong(start)} to {dayLong(end)}. Grouped by the day of the show.
+        {note ?? `Shows from ${dayLong(start)} to ${dayLong(end)}. Grouped by the day of the show.`}
       </p>
     </div>
   );

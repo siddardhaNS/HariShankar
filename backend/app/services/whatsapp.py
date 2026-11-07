@@ -97,7 +97,7 @@ def _rupees(paise: int) -> str:
     return f"₹{paise / 100:,.2f}".replace(".00", "")
 
 
-def booking_confirmed(db: Session, b: Booking) -> None:
+def booking_confirmed(db: Session, b: Booking, key: str | None = None) -> None:
     customer = db.get(Customer, b.customer_id)
     if not customer:
         return
@@ -106,7 +106,20 @@ def booking_confirmed(db: Session, b: Booking) -> None:
     body = (f"Your tickets are booked! 🎬\n{title}\n{when}\nSeats: {seats}\nBooking ID: {b.code}\n\n"
             f"Show the QR in the {theatre.name if theatre else ''} app at the gate.")
     _queue(db, theatre_id=b.theatre_id, customer=customer, kind="booking_confirmed", body=body,
-           key=f"confirmed:{b.id}", booking_id=b.id)
+           key=key or f"confirmed:{b.id}", booking_id=b.id)
+
+
+RESEND_EVERY = timedelta(minutes=2)
+
+
+def resend_ticket(db: Session, b: Booking) -> None:
+    """Staff resend the booking message (customer lost it or changed phones)."""
+    now = datetime.now(UTC)
+    last = db.scalar(select(func.max(Message.created_at)).where(
+        Message.booking_id == b.id, Message.kind == "booking_confirmed"))
+    if last and now - last < RESEND_EVERY:
+        raise ValueError("Sent just now. Wait a couple of minutes before sending again")
+    booking_confirmed(db, b, key=f"resend:{b.id}:{int(now.timestamp())}")
 
 
 def refunded(db: Session, b: Booking, reason: str) -> None:

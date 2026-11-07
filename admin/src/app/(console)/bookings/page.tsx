@@ -6,6 +6,7 @@ import { dateTime, rupees } from "@/lib/format";
 import type { AdminBooking, TheatrePayments } from "@/lib/types";
 import { PaymentsToCheck, UpiSettings } from "./Payments";
 import { RefundButton } from "./RefundButton";
+import { ResendButton } from "./ResendButton";
 
 export const metadata: Metadata = { title: "Bookings" };
 
@@ -23,6 +24,7 @@ const REASON: Record<string, string> = {
   manual_refund: "Refunded by theatre",
   payment_not_received: "UPI payment not received",
   payment_failed: "Payment failed",
+  expired: "Left without paying",
 };
 
 export default async function BookingsPage({ searchParams }: PageProps<"/bookings">) {
@@ -116,7 +118,8 @@ export default async function BookingsPage({ searchParams }: PageProps<"/booking
                     )}
                     {b.upi_ref && <div className="font-mono text-[11px] text-muted">UPI {b.upi_ref}</div>}
                   </td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="space-y-1 px-5 py-3 text-right">
+                    {b.status === "confirmed" && <ResendButton bookingId={b.id} />}
                     {isOwner && b.status === "confirmed" && b.seats_admitted === 0 && (
                       <RefundButton bookingId={b.id} amount={rupees(b.total_paise)} />
                     )}

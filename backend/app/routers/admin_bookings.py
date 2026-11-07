@@ -1,7 +1,7 @@
 """Admin: bookings search, manual refund, and the Today page."""
 import re
 import uuid
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -20,6 +20,8 @@ from app.routers.app_catalog import show_label
 from app.schemas.admin import (
     AdminBookingOut,
     RefundIn,
+    RefundReasonTotal,
+    RefundsOut,
     RefundSentIn,
     ReviewIn,
     TheatrePayments,
@@ -27,6 +29,7 @@ from app.schemas.admin import (
     TodayShow,
 )
 from app.services import bookings as booking_svc
+from app.services import whatsapp
 
 router = APIRouter(prefix="/api/admin", tags=["admin bookings"])
 manage = require_roles(StaffRole.owner, StaffRole.manager)
@@ -55,6 +58,7 @@ def _bookings_out(db: Session, rows: list[Booking], tz: ZoneInfo) -> list[AdminB
             show_label=show_label(s.starts_at, tz), show_status=s.status, seats=seats.get(b.id, []),
             total_paise=b.total_paise, refund_paise=b.refund_paise, refund_id=b.refund_id,
             payment_method=b.payment_method, gateway=b.gateway, upi_ref=b.upi_ref, refund_pending=b.refund_pending,
+            refunded_at=b.refunded_at, refund_sent_at=b.refund_sent_at, refund_note=b.refund_note,
             seats_admitted=b.seats_admitted, created_at=b.created_at,
         ))
     return out
@@ -102,7 +106,7 @@ def refund_booking(booking_id: uuid.UUID, body: RefundIn, user: StaffUser = Depe
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
     if b.seats_admitted > 0:
         raise HTTPException(status.HTTP_409_CONFLICT, "Someone on this booking has already entered")
-    booking_svc.refund_confirmed(db, b, "manual_refund")
+    booking_svc.refund_confirmed(db, b, "manual_refund", body.reason.strip())
     audit.record(db, user, "booking_refunded", "booking", b.id, code=b.code, amount_paise=b.refund_paise,
                  reason=body.reason.strip())
     db.commit()
@@ -221,3 +225,81 @@ def set_payments_settings(body: TheatrePayments, user: StaffUser = Depends(owner
     t.upi_name = body.upi_name.strip()
     db.commit()
     return body
+
+
+@router.post("/bookings/{booking_id}/resend", response_model=AdminBookingOut)
+def resend_ticket(booking_id: uuid.UUID, user: StaffUser = Depends(manage), db: Session = Depends(get_db)):
+    """Send the booking's WhatsApp message again."""
+    b = _locked_booking(db, user, booking_id)
+    if b.status != BookingStatus.confirmed:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only confirmed bookings have a ticket to send")
+    try:
+        whatsapp.resend_ticket(db, b)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(e)) from None
+    audit.record(db, user, "ticket_resent", "booking", b.id, code=b.code)
+    db.commit()
+    return _bookings_out(db, [b], _tz(db, user))[0]
+
+
+# ---------- Refunds ----------
+
+REFUND_STATES = ("to_send", "done", "all")
+
+
+@router.get("/refunds", response_model=RefundsOut)
+def refunds(
+    state: str = Query(default="all", pattern="^(to_send|done|all)$"),
+    start: date | None = None,
+    end: date | None = None,
+    reason: str | None = Query(default=None, max_length=40),
+    q: str = Query(default="", max_length=80),
+    user: StaffUser = Depends(manage),
+    db: Session = Depends(get_db),
+):
+    """Every refund: what's still to be sent back, and the history by refund date."""
+    tz = _tz(db, user)
+    today = datetime.now(tz).date()
+    end = end or today
+    start = start or end - timedelta(days=29)
+    if start > end:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Start date is after the end date")
+    base = [Booking.theatre_id == user.theatre_id, Booking.status == BookingStatus.refunded, Booking.refund_paise > 0]
+
+    # Always shown in full, whatever the dates: money the theatre still owes
+    owed = db.execute(select(func.count(), func.coalesce(func.sum(Booking.refund_paise), 0))
+                      .where(*base, Booking.refund_pending.is_(True))).one()
+
+    stmt = select(Booking).join(Customer, Customer.id == Booking.customer_id).where(*base)
+    if state == "to_send":
+        stmt = stmt.where(Booking.refund_pending.is_(True))
+    else:
+        lo = datetime.combine(start, time.min, tz)
+        hi = datetime.combine(end + timedelta(days=1), time.min, tz)
+        stmt = stmt.where(func.coalesce(Booking.refunded_at, Booking.updated_at) >= lo,
+                          func.coalesce(Booking.refunded_at, Booking.updated_at) < hi)
+        if state == "done":
+            stmt = stmt.where(Booking.refund_pending.is_(False))
+    if reason:
+        stmt = stmt.where(Booking.failure_reason == reason)
+    term = q.strip()
+    if term:
+        digits = re.sub(r"\D", "", term)
+        conds = [Booking.code == term.upper(), Booking.customer_name.ilike(f"%{term}%")]
+        if len(digits) >= 4:
+            conds.append(Customer.mobile.like(f"%{digits[-10:]}%"))
+        stmt = stmt.where(or_(*conds))
+    rows = list(db.scalars(stmt.order_by(Booking.refund_pending.desc(),
+                                         func.coalesce(Booking.refunded_at, Booking.updated_at).desc()).limit(300)))
+    by_reason: dict[str, list[int]] = {}
+    for b in rows:
+        agg = by_reason.setdefault(b.failure_reason or "other", [0, 0])
+        agg[0] += 1
+        agg[1] += b.refund_paise
+    return RefundsOut(
+        start=start, end=end, state=state,
+        to_send_count=owed[0], to_send_paise=owed[1],
+        listed_count=len(rows), listed_paise=sum(b.refund_paise for b in rows),
+        by_reason=[RefundReasonTotal(reason=k, count=v[0], paise=v[1]) for k, v in sorted(by_reason.items())],
+        refunds=_bookings_out(db, rows, tz),
+    )

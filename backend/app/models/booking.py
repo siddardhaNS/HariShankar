@@ -52,6 +52,9 @@ class Booking(IdMixin, TimestampMixin, TheatreScoped, Base):
     refund_paise: Mapped[int] = mapped_column(Integer, default=0)
     # Direct UPI has no gateway to send refunds: staff send them by hand and mark them sent
     refund_pending: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    refund_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # direct UPI: when staff sent it
+    refund_note: Mapped[str | None] = mapped_column(String(200))  # why, in the theatre's words
     upi_ref: Mapped[str | None] = mapped_column(String(30), unique=True)  # UTR the customer entered
     failure_reason: Mapped[str | None] = mapped_column(String(40))  # seat_clash | payment_failed | expired
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

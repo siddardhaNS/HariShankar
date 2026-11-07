@@ -203,6 +203,9 @@ class AdminBookingOut(BaseModel):
     gateway: str
     upi_ref: str | None
     refund_pending: bool
+    refunded_at: datetime | None = None
+    refund_sent_at: datetime | None = None
+    refund_note: str | None = None
     seats_admitted: int
     created_at: datetime
 
@@ -467,3 +470,24 @@ class MessageLogOut(BaseModel):
     send_after: datetime
     sent_at: datetime | None
     booking_code: str | None
+
+
+# ---------- Refunds ----------
+
+
+class RefundReasonTotal(BaseModel):
+    reason: str
+    count: int
+    paise: int
+
+
+class RefundsOut(BaseModel):
+    start: date
+    end: date
+    state: str
+    to_send_count: int
+    to_send_paise: int
+    listed_count: int
+    listed_paise: int
+    by_reason: list[RefundReasonTotal]
+    refunds: list[AdminBookingOut]

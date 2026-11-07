@@ -92,8 +92,23 @@ export type AdminBooking = {
   gateway: string;
   upi_ref: string | null;
   refund_pending: boolean;
+  refunded_at: string | null;
+  refund_sent_at: string | null;
+  refund_note: string | null;
   seats_admitted: number;
   created_at: string;
+};
+
+export type Refunds = {
+  start: string;
+  end: string;
+  state: "to_send" | "done" | "all";
+  to_send_count: number;
+  to_send_paise: number;
+  listed_count: number;
+  listed_paise: number;
+  by_reason: { reason: string; count: number; paise: number }[];
+  refunds: AdminBooking[];
 };
 
 export type Today = {

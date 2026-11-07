@@ -12,7 +12,7 @@
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -134,7 +134,7 @@ def start_booking(
     return booking, order
 
 
-def _refund(db: Session, booking: Booking, reason: str) -> None:
+def _refund(db: Session, booking: Booking, reason: str, note: str | None = None) -> None:
     """Full refund through the booking's own gateway. Direct UPI can't refund
     by itself, so the booking is flagged for staff to send the money back."""
     gateway = get_gateway(booking.gateway)
@@ -143,6 +143,8 @@ def _refund(db: Session, booking: Booking, reason: str) -> None:
     booking.refund_paise = booking.total_paise
     booking.status = BookingStatus.refunded
     booking.failure_reason = reason
+    booking.refunded_at = datetime.now(UTC)
+    booking.refund_note = note
 
 
 def _hold_seats(db: Session, booking: Booking, show: Show | None) -> str | None:
@@ -177,8 +179,9 @@ def confirm_payment(db: Session, order_id: str, payment_id: str, method: str | N
     booking.gateway_payment_id = payment_id
     booking.payment_method = method
 
-    # Money arrived but the booking can't go ahead: refund in full
-    if booking.status != BookingStatus.payment_pending:
+    # Money arrived but the booking can't go ahead: refund in full. A payment that
+    # only expired (paid late) still gets the seats if they're free.
+    if booking.status != BookingStatus.payment_pending and not _expired(booking):
         _refund(db, booking, booking.failure_reason or "booking_failed")
         db.commit()
         return booking
@@ -195,14 +198,14 @@ def confirm_payment(db: Session, order_id: str, payment_id: str, method: str | N
     return booking
 
 
-def refund_confirmed(db: Session, booking: Booking, reason: str) -> None:
+def refund_confirmed(db: Session, booking: Booking, reason: str, note: str | None = None) -> None:
     """Refund a confirmed booking in full and free its seats (show cancelled,
     or a manual refund from the admin). The caller commits."""
     if booking.status not in (BookingStatus.confirmed, BookingStatus.payment_review):
         raise HTTPException(status.HTTP_409_CONFLICT, "Only paid bookings can be refunded")
     for bs in db.scalars(select(BookingSeat).where(BookingSeat.booking_id == booking.id)):
         bs.holds_seat = False
-    _refund(db, booking, reason)
+    _refund(db, booking, reason, note)
     whatsapp.refunded(db, booking, reason)
 
 
@@ -215,7 +218,7 @@ def claim_upi(db: Session, booking: Booking, utr: str) -> Booking:
     arrived before the ticket is confirmed."""
     if booking.gateway != "upi":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "This booking isn't paid by direct UPI")
-    if booking.status != BookingStatus.payment_pending:
+    if booking.status != BookingStatus.payment_pending and not _expired(booking):
         raise HTTPException(status.HTTP_409_CONFLICT, "This booking is already being processed")
     if db.scalar(select(Booking.id).where(Booking.upi_ref == utr)):
         raise HTTPException(status.HTTP_409_CONFLICT, "This UPI reference was already used for another booking")
@@ -251,6 +254,7 @@ def mark_refund_sent(db: Session, booking: Booking, ref: str) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, "No refund is waiting to be sent for this booking")
     booking.refund_id = ref
     booking.refund_pending = False
+    booking.refund_sent_at = datetime.now(UTC)
     whatsapp.refund_sent(db, booking)
 
 
@@ -263,3 +267,25 @@ def fail_payment(db: Session, order_id: str, reason: str = "payment_failed") -> 
         booking.failure_reason = reason
         db.commit()
     return booking
+
+
+# ---------- Abandoned payments ----------
+
+
+def _expired(booking: Booking) -> bool:
+    return booking.status == BookingStatus.failed and booking.failure_reason == "expired"
+
+
+def expire_abandoned(db: Session, now: datetime | None = None) -> int:
+    """Bookings left on the payment screen past the payment window become
+    failed / expired, so they stop showing as stuck. Nothing was held for them.
+    If the money turns up later (a late UPI reference or gateway webhook), the
+    booking still goes ahead when its seats are free, and is refunded if not."""
+    now = now or datetime.now(UTC)
+    cutoff = now - timedelta(minutes=get_settings().payment_window_minutes)
+    rows = list(db.scalars(select(Booking).where(Booking.status == BookingStatus.payment_pending,
+                                                 Booking.created_at < cutoff).with_for_update(skip_locked=True)))
+    for b in rows:
+        b.status = BookingStatus.failed
+        b.failure_reason = "expired"
+    return len(rows)

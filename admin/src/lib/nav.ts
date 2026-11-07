@@ -17,6 +17,7 @@ export const NAV: NavItem[] = [
   { href: "/", label: "Today", roles: ADMIN, ready: true, blurb: "Collection, tickets sold, seats filled and alerts" },
   { href: "/shows", label: "Shows", roles: ADMIN, ready: true, blurb: "Movies, a week of show timings, prices and booking open time" },
   { href: "/bookings", label: "Bookings", roles: ADMIN, ready: true, blurb: "Search by booking ID, name or mobile; resend or refund" },
+  { href: "/refunds", label: "Refunds", roles: ADMIN, ready: true, blurb: "Money to send back, and every refund with its reason" },
   { href: "/block-rows", label: "Block rows", roles: ADMIN, ready: true, blurb: "Block rows or seats for one show or all upcoming shows" },
   { href: "/scan", label: "Scan tickets", roles: ALL, blurb: "Gate scanning is in the Hari Shankar Android app: Profile, then Gate scanner. Log in with this same mobile number and PIN" },
   { href: "/promotions", label: "Promotions", roles: ADMIN, ready: true, blurb: "Offers and promo codes customers use at checkout" },

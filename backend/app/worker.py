@@ -1,4 +1,5 @@
-"""Background worker: adds show reminders and sends due WhatsApp messages.
+"""Background worker: expires abandoned payments, adds show reminders and
+sends due WhatsApp messages.
 
 Run with `python -m app.worker` (docker compose starts it as `worker`).
 Safe to run more than one: messages are locked while sending and deduplicated.
@@ -7,7 +8,7 @@ import logging
 import time
 
 from app.db import SessionLocal
-from app.services import whatsapp
+from app.services import bookings, whatsapp
 
 log = logging.getLogger("worker")
 EVERY_SECONDS = 30
@@ -15,6 +16,7 @@ EVERY_SECONDS = 30
 
 def tick() -> int:
     with SessionLocal() as db:
+        bookings.expire_abandoned(db)
         whatsapp.queue_reminders(db)
         db.commit()
         sent = whatsapp.send_due(db, whatsapp.get_sender())

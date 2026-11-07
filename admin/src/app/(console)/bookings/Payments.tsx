@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { markRefundSent, reviewPayment, savePaymentSettings } from "@/app/actions/ops";
 import { Alert } from "@/components/Brand";
@@ -28,21 +29,18 @@ export function PaymentsToCheck({ items, isOwner }: { items: AdminBooking[]; isO
         </section>
       )}
       {toSend.length > 0 && (
-        <section className="card overflow-hidden border-brand">
-          <div className="border-b border-line bg-brand-soft px-5 py-3">
-            <h2 className="font-bold text-[#8a1424]">Refunds to send <span className="ml-1">{toSend.length}</span></h2>
-            <p className="text-xs text-[#8a1424]">These customers paid by UPI but didn&apos;t get seats. Send the money back by UPI to their mobile number, then mark it sent.</p>
-          </div>
-          <ul className="divide-y divide-line">
-            {toSend.map((b) => <RefundRow key={b.id} b={b} canMark={isOwner} />)}
-          </ul>
-        </section>
+        <Link href="/refunds?state=to_send" className="card flex items-center justify-between gap-3 border-brand bg-brand-soft px-5 py-3 hover:opacity-90">
+          <span className="font-bold text-[#8a1424]">
+            {toSend.length} refund{toSend.length === 1 ? "" : "s"} to send · {rupees(toSend.reduce((a, b) => a + b.refund_paise, 0))}
+          </span>
+          <span className="text-sm font-bold text-[#8a1424]">{isOwner ? "Send them in Refunds →" : "See Refunds →"}</span>
+        </Link>
       )}
     </div>
   );
 }
 
-function Who({ b }: { b: AdminBooking }) {
+export function Who({ b }: { b: AdminBooking }) {
   return (
     <div className="min-w-[200px] flex-1">
       <div className="font-medium">{b.customer_name || "—"} <span className="font-mono text-xs text-muted">{b.mobile}</span></div>
@@ -90,7 +88,7 @@ function CheckRow({ b }: { b: AdminBooking }) {
   );
 }
 
-function RefundRow({ b, canMark }: { b: AdminBooking; canMark: boolean }) {
+export function RefundRow({ b, canMark }: { b: AdminBooking; canMark: boolean }) {
   const [ref, setRef] = useState("");
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);

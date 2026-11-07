@@ -35,7 +35,7 @@ export default async function TodayPage() {
           ? [t.payments_to_check && `${t.payments_to_check} UPI payment(s) to check`, t.refunds_to_send && `${t.refunds_to_send} refund(s) to send`].filter(Boolean).join(" · ")
           : "Nothing waiting",
       alert: t.payments_to_check + t.refunds_to_send > 0,
-      href: "/bookings",
+      href: t.payments_to_check ? "/bookings" : "/refunds",
     },
   ];
 
