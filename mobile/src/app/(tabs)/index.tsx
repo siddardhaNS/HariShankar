@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LogoMark } from '@/components/Logo';
 import { Poster } from '@/components/Poster';
 import { Button, Card, Chip, ErrorState, Loading, T } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -99,9 +100,7 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} colors={[c.brand]} />}
     >
       <View style={styles.top}>
-        <View style={[styles.logo, { backgroundColor: c.brand }]}>
-          <T style={{ color: '#fff', fontFamily: fonts.display, fontSize: 18 }}>HS</T>
-        </View>
+        <LogoMark size={46} />
         <View style={{ flex: 1 }}>
           <T style={{ fontFamily: fonts.display, fontSize: 19, lineHeight: 21, letterSpacing: 0.5 }} numberOfLines={2}>
             {data.theatre.name.toUpperCase()}
@@ -215,7 +214,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  logo: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   pill: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, minWidth: 86 },
