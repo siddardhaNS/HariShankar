@@ -68,7 +68,7 @@ export default function TestPayment() {
 
       <Card style={{ marginTop: 24, alignItems: 'center', paddingVertical: 28 }}>
         <T v="small">Amount</T>
-        <T style={{ fontFamily: fonts.bold, fontSize: 40, color: c.ink, marginTop: 4 }}>{rupees(Number(amount))}</T>
+        <T style={{ fontFamily: fonts.bold, fontSize: 40, lineHeight: 48, color: c.ink, marginTop: 4 }}>{rupees(Number(amount))}</T>
         <T v="small" style={{ marginTop: 4 }}>{payMethodLabel(method)}</T>
       </Card>
 

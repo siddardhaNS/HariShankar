@@ -14,7 +14,7 @@ import { useApi } from '@/lib/useApi';
 /** ["H8","H9"] -> "H8–9" (seats side by side share a row) */
 function groupLabel(labels: string[]) {
   if (labels.length < 2) return labels[0] ?? '';
-  return `${labels[0]}–${labels[labels.length - 1].replace(/^D+/, '')}`;
+  return `${labels[0]}–${labels[labels.length - 1].replace(/^\D+/, '')}`;
 }
 
 function sideText(offset: number) {

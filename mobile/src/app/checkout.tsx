@@ -121,8 +121,8 @@ export default function Checkout() {
           <Row label="GST on booking fee" value={rupees(gst)} />
           <View style={[styles.divider, { backgroundColor: c.line }]} />
           <View style={styles.row}>
-            <T style={{ fontFamily: fonts.bold, fontSize: 22 }}>Total</T>
-            <T style={{ fontFamily: fonts.bold, fontSize: 22 }}>{rupees(total)}</T>
+            <T style={{ fontFamily: fonts.bold, fontSize: 22, lineHeight: 28 }}>Total</T>
+            <T style={{ fontFamily: fonts.bold, fontSize: 22, lineHeight: 28 }}>{rupees(total)}</T>
           </View>
         </Card>
 
