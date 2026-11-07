@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # WhatsApp (provider decided later; console prints to the log in development)
     whatsapp_provider: str = "console"
 
+    # App notifications: console prints to the log in development; expo sends to phones
+    push_provider: str = "console"    # console | expo
+    expo_access_token: str = ""       # only if enhanced push security is on in the Expo account
+
     # Gate
     gate_opens_minutes_before: int = 60  # tickets can be scanned from this long before the show
     gate_undo_minutes: int = 5           # a wrong entry can be undone by the same staff for this long

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Forbidden, PageHeader } from "@/components/PageHeader";
 import { api, getMe } from "@/lib/api";
 import { dateTime } from "@/lib/format";
-import type { Audience, Campaign, MessageLog } from "@/lib/types";
+import type { Audience, AudienceSize, Campaign, Channel, MessageLog } from "@/lib/types";
 import { CancelButton } from "./CancelButton";
 import { Compose } from "./Compose";
 
@@ -18,6 +18,7 @@ const KINDS: Record<string, string> = {
   promotion: "Offer",
 };
 const AUDIENCE: Record<Audience, string> = { all: "Everyone opted in", recent_90: "Last 90 days", recent_30: "Last 30 days" };
+const CHANNEL: Record<Channel, string> = { whatsapp: "WhatsApp", push: "App notification", both: "WhatsApp and app" };
 const STATUS: Record<MessageLog["status"], string> = {
   sent: "bg-ok-soft text-[#145c33]",
   queued: "bg-[#fff4c2] text-[#7a5b00]",
@@ -31,15 +32,15 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
   const sp = await searchParams;
   const kind = typeof sp.kind === "string" && sp.kind in KINDS ? sp.kind : null;
   const [sizes, campaigns, log] = await Promise.all([
-    api<{ audience: Audience; customers: number }[]>("/api/admin/messages/audience"),
+    api<AudienceSize[]>("/api/admin/messages/audience"),
     api<Campaign[]>("/api/admin/messages/campaigns"),
     api<MessageLog[]>(`/api/admin/messages/log${kind ? `?kind=${kind}` : ""}`),
   ]);
-  const sizeMap = Object.fromEntries(sizes.map((s) => [s.audience, s.customers])) as Record<Audience, number>;
+  const sizeMap = Object.fromEntries(sizes.map((s) => [s.audience, s])) as Record<Audience, AudienceSize>;
 
   return (
     <>
-      <PageHeader title="Messages" subtitle="WhatsApp offers to customers who asked for them, and every message the theatre has sent" />
+      <PageHeader title="Messages" subtitle="Offers on WhatsApp or as app notifications to customers who asked for them, and every message the theatre has sent" />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
           <section className="card overflow-hidden">
@@ -53,7 +54,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                     <div className="min-w-[220px] flex-1">
                       <div className="font-bold">{c.title}</div>
                       <p className="mt-0.5 line-clamp-2 text-sm text-muted">{c.body}</p>
-                      <p className="mt-1 text-xs text-muted">{AUDIENCE[c.audience]} · {c.status === "queued" ? `Goes ${dateTime(c.send_after)}` : `From ${dateTime(c.send_after)}`}</p>
+                      <p className="mt-1 text-xs text-muted">{CHANNEL[c.channel] ?? "WhatsApp"} · {AUDIENCE[c.audience]} · {c.status === "queued" ? `Goes ${dateTime(c.send_after)}` : `From ${dateTime(c.send_after)}`}</p>
                     </div>
                     <div className="w-44 text-sm tabular-nums">
                       <div><b>{c.sent}</b> of {c.recipients} sent</div>
@@ -87,6 +88,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase ${STATUS[m.status]}`}>{m.status}</span>
                       <span className="font-bold">{KINDS[m.kind] ?? m.kind}</span>
+                      <span className="rounded-md border border-line px-1.5 py-0.5 text-[11px] font-bold text-ink-2">{m.channel === "push" ? "App" : "WhatsApp"}</span>
                       <span className="text-muted">+91 {m.mobile}{m.booking_code ? ` · ${m.booking_code}` : ""}</span>
                       <span className="ml-auto text-xs text-muted">{m.sent_at ? `Sent ${dateTime(m.sent_at)}` : `Due ${dateTime(m.send_after)}`}</span>
                     </div>

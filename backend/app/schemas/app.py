@@ -51,6 +51,12 @@ class CustomerPatch(BaseModel):
     reminders_opt_in: bool | None = None
 
 
+class PushTokenIn(BaseModel):
+    """An Expo push token, e.g. ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]."""
+    token: str = Field(min_length=10, max_length=200, pattern=r"^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$")
+    platform: Literal["android", "ios"] = "android"
+
+
 class TheatreOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

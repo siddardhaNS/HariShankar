@@ -1,4 +1,4 @@
-"""Admin: promotional WhatsApp messages and the message log (owner only)."""
+"""Admin: promotional messages (WhatsApp and app notifications) and the message log (owner only)."""
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -12,7 +12,7 @@ from app.deps import require_roles
 from app.models import Booking, Campaign, Message, StaffUser
 from app.models.enums import StaffRole
 from app.schemas.admin import AudienceCount, CampaignIn, CampaignOut, MessageLogOut
-from app.services import whatsapp
+from app.services import push, whatsapp
 
 router = APIRouter(prefix="/api/admin/messages", tags=["admin messages"])
 owner_only = require_roles(StaffRole.owner)
@@ -35,9 +35,13 @@ def _out(db: Session, rows: list[Campaign]) -> list[CampaignOut]:
 
 @router.get("/audience", response_model=list[AudienceCount])
 def audience_sizes(user: StaffUser = Depends(owner_only), db: Session = Depends(get_db)):
-    """How many customers each audience reaches (only those who turned on offers)."""
-    return [AudienceCount(audience=a, customers=len(whatsapp.audience(db, user.theatre_id, a)))
-            for a in ("all", "recent_90", "recent_30")]
+    """How many customers each audience reaches (only those who turned on offers),
+    and how many of them can get app notifications."""
+    out = []
+    for a in ("all", "recent_90", "recent_30"):
+        people = whatsapp.audience(db, user.theatre_id, a)
+        out.append(AudienceCount(audience=a, customers=len(people), with_app=len(push.has_app(db, [p.id for p in people]))))
+    return out
 
 
 @router.get("/campaigns", response_model=list[CampaignOut])
@@ -56,12 +60,14 @@ def send_campaign(body: CampaignIn, user: StaffUser = Depends(owner_only), db: S
     if at > now + timedelta(days=30):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Schedule it within 30 days")
     c = Campaign(theatre_id=user.theatre_id, title=body.title.strip(), body=body.body.strip(), audience=body.audience,
-                 send_after=at, created_by=user.id)
+                 channel=body.channel, send_after=at, created_by=user.id)
     db.add(c)
     db.flush()
     if whatsapp.queue_campaign(db, c) == 0:
-        raise HTTPException(status.HTTP_409_CONFLICT, "No customers in this audience have turned on offers yet")
-    audit.record(db, user, "campaign_queued", "campaign", c.id, audience=c.audience, recipients=c.recipients)
+        raise HTTPException(status.HTTP_409_CONFLICT, "No customers in this audience have the app with notifications on yet"
+                            if body.channel == "push" else "No customers in this audience have turned on offers yet")
+    audit.record(db, user, "campaign_queued", "campaign", c.id, audience=c.audience, channel=c.channel,
+                 recipients=c.recipients)
     db.commit()
     return _out(db, [c])[0]
 
@@ -88,6 +94,6 @@ def message_log(kind: str | None = Query(default=None, max_length=24), user: Sta
          .where(Message.theatre_id == user.theatre_id).order_by(Message.created_at.desc()).limit(100))
     if kind:
         q = q.where(Message.kind == kind)
-    return [MessageLogOut(id=m.id, kind=m.kind, mobile=m.mobile, body=m.body, status=m.status, error=m.error,
+    return [MessageLogOut(id=m.id, kind=m.kind, channel=m.channel, mobile=m.mobile, body=m.body, status=m.status, error=m.error,
                           send_after=m.send_after, sent_at=m.sent_at, booking_code=code)
             for m, code in db.execute(q)]

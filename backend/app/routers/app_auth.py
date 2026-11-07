@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.models import Customer
-from app.schemas.app import AuthOut, CustomerOut, CustomerPatch, OtpRequestIn, OtpRequestOut, OtpVerifyIn
+from app.schemas.app import AuthOut, CustomerOut, CustomerPatch, OtpRequestIn, OtpRequestOut, OtpVerifyIn, PushTokenIn
 from app.security import create_customer_token, decode_customer_token
-from app.services import otp
+from app.services import otp, push
 
 router = APIRouter(prefix="/api/app", tags=["app auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -65,3 +65,17 @@ def update_me(body: CustomerPatch, customer: Customer = Depends(current_customer
         setattr(customer, field, value)
     db.commit()
     return customer
+
+
+@router.post("/push-tokens", status_code=status.HTTP_204_NO_CONTENT)
+def register_push_token(body: PushTokenIn, customer: Customer = Depends(current_customer), db: Session = Depends(get_db)):
+    """The app calls this after login (and on each start) once notifications are allowed."""
+    push.register(db, customer, body.token, body.platform)
+    db.commit()
+
+
+@router.post("/push-tokens/remove", status_code=status.HTTP_204_NO_CONTENT)
+def remove_push_token(body: PushTokenIn, customer: Customer = Depends(current_customer), db: Session = Depends(get_db)):
+    """On logout: this phone stops getting this customer's notifications."""
+    push.unregister(db, customer, body.token)
+    db.commit()

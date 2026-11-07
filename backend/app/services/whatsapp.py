@@ -1,4 +1,4 @@
-"""WhatsApp messages: automatic ones about a booking, and the owner's promotions.
+"""WhatsApp messages and app notifications: automatic ones about a booking, and the owner's promotions.
 
 Every message is first written to `messages` (the outbox) in the same
 transaction as the change that caused it, so a message is never lost and never
@@ -16,7 +16,12 @@ Rules:
   the customer's own ticket.
 - Reminders go only to customers with "Show reminders" on.
 - Promotions go only to customers with "Offers and new releases" on, at most
-  2 a week, and never between 9 PM and 9 AM (held until 9 AM).
+  2 a week on each channel, and never between 9 PM and 9 AM (held until 9 AM).
+
+App notifications (see `app/services/push.py`) use the same outbox with
+channel "push". Every automatic message also goes as a notification when the
+customer has the app with notifications allowed; offers go on the channel the
+owner picks (WhatsApp, app notification or both).
 """
 import logging
 import uuid
@@ -32,6 +37,7 @@ from app.config import get_settings
 from app.models import Booking, BookingSeat, Campaign, Customer, Message, Movie, Seat, Show, Theatre
 from app.models.enums import BookingStatus, ShowStatus
 from app.routers.app_catalog import show_label
+from app.services import push
 
 log = logging.getLogger("whatsapp")
 
@@ -40,6 +46,13 @@ QUIET_FROM, QUIET_UNTIL = 21, 9   # promotions wait from 9 PM until 9 AM
 MORNING_AT = 9                    # morning-of reminder time
 MAX_ATTEMPTS = 3
 PROMO_KINDS = {"promotion"}
+PUSH_TITLES = {
+    "booking_confirmed": "Tickets booked",
+    "refunded": "Booking refunded",
+    "refund_sent": "Refund sent",
+    "reminder_morning": "Your show is today",
+    "reminder_hour": "Your show starts in an hour",
+}
 
 
 class WhatsAppSender(Protocol):
@@ -71,13 +84,19 @@ def _tz(db: Session, theatre_id: uuid.UUID) -> ZoneInfo:
 
 def _queue(db: Session, *, theatre_id: uuid.UUID, customer: Customer, kind: str, body: str, key: str,
            send_after: datetime | None = None, booking_id: uuid.UUID | None = None,
-           campaign_id: uuid.UUID | None = None) -> None:
-    """Add to the outbox; a second message with the same key is ignored."""
+           campaign_id: uuid.UUID | None = None, channel: str = "whatsapp") -> None:
+    """Add to the outbox; a second message with the same key is ignored.
+
+    An automatic (non-promotion) WhatsApp message is also queued as an app
+    notification when the customer has the app with notifications on."""
     db.execute(insert(Message).values(
         id=uuid.uuid4(), theatre_id=theatre_id, customer_id=customer.id, mobile=customer.mobile, kind=kind, body=body,
         dedupe_key=key, send_after=send_after or datetime.now(UTC), booking_id=booking_id, campaign_id=campaign_id,
-        status="queued", attempts=0,
+        status="queued", attempts=0, channel=channel,
     ).on_conflict_do_nothing(index_elements=["dedupe_key"]))
+    if channel == "whatsapp" and kind not in PROMO_KINDS and push.has_app(db, [customer.id]):
+        _queue(db, theatre_id=theatre_id, customer=customer, kind=kind, body=body, key=f"push:{key}",
+               send_after=send_after, booking_id=booking_id, campaign_id=campaign_id, channel="push")
 
 
 def _ticket_words(db: Session, b: Booking) -> tuple[Show, str, str, str]:
@@ -201,13 +220,21 @@ def queue_reminders(db: Session, now: datetime | None = None) -> int:
 # ---------- Promotions ----------
 
 
-def audience(db: Session, theatre_id: uuid.UUID, kind: str) -> list[Customer]:
-    """Customers who turned on offers and have booked here (in the last 30 or 90 days, or ever)."""
+CHANNELS = ("whatsapp", "push", "both")
+
+
+def audience(db: Session, theatre_id: uuid.UUID, kind: str, channel: str = "whatsapp") -> list[Customer]:
+    """Customers who turned on offers and have booked here (in the last 30 or 90 days, or ever).
+    For app notifications, only those with the app and notifications allowed."""
     q = select(Booking.customer_id).where(Booking.theatre_id == theatre_id, Booking.status == BookingStatus.confirmed)
     if kind in ("recent_30", "recent_90"):
         q = q.where(Booking.created_at >= datetime.now(UTC) - timedelta(days=30 if kind == "recent_30" else 90))
-    return list(db.scalars(select(Customer).where(Customer.id.in_(q.distinct()), Customer.offers_opt_in)
-                           .order_by(Customer.created_at)))
+    people = list(db.scalars(select(Customer).where(Customer.id.in_(q.distinct()), Customer.offers_opt_in)
+                             .order_by(Customer.created_at)))
+    if channel == "push":
+        with_app = push.has_app(db, [p.id for p in people])
+        people = [p for p in people if p.id in with_app]
+    return people
 
 
 def next_allowed(at: datetime, tz: ZoneInfo) -> datetime:
@@ -221,13 +248,20 @@ def next_allowed(at: datetime, tz: ZoneInfo) -> datetime:
 
 
 def queue_campaign(db: Session, c: Campaign) -> int:
-    people = audience(db, c.theatre_id, c.audience)
+    """Queue the offer for everyone in its audience. With "both", WhatsApp goes to
+    everyone and the notification to those with the app as well."""
+    people = audience(db, c.theatre_id, c.audience, "push" if c.channel == "push" else "whatsapp")
+    with_app = push.has_app(db, [p.id for p in people]) if c.channel == "both" else set()
     theatre = db.get(Theatre, c.theatre_id)
     footer = f"\n\n— {theatre.name if theatre else ''}\nTo stop offers, turn off “Offers and new releases” in the app’s Profile."
     send_at = next_allowed(c.send_after, _tz(db, c.theatre_id))
     for p in people:
-        _queue(db, theatre_id=c.theatre_id, customer=p, kind="promotion", body=c.body.strip() + footer,
-               key=f"campaign:{c.id}:{p.id}", send_after=send_at, campaign_id=c.id)
+        if c.channel in ("whatsapp", "both"):
+            _queue(db, theatre_id=c.theatre_id, customer=p, kind="promotion", body=c.body.strip() + footer,
+                   key=f"campaign:{c.id}:{p.id}", send_after=send_at, campaign_id=c.id)
+        if c.channel == "push" or p.id in with_app:
+            _queue(db, theatre_id=c.theatre_id, customer=p, kind="promotion", body=c.body.strip(),
+                   key=f"campaign:{c.id}:{p.id}:push", send_after=send_at, campaign_id=c.id, channel="push")
     c.recipients = len(people)
     return len(people)
 
@@ -248,7 +282,7 @@ def _still_wanted(db: Session, m: Message, now: datetime) -> tuple[bool, str | N
             return False, None, later
         week = db.scalar(select(func.count()).select_from(Message).where(
             Message.customer_id == customer.id, Message.kind.in_(PROMO_KINDS), Message.status == "sent",
-            Message.sent_at >= now - timedelta(days=7)))
+            Message.channel == m.channel, Message.sent_at >= now - timedelta(days=7)))
         if week >= PROMO_PER_WEEK:
             return False, f"already {PROMO_PER_WEEK} offers this week", None
     if m.kind.startswith("reminder"):
@@ -260,9 +294,33 @@ def _still_wanted(db: Session, m: Message, now: datetime) -> tuple[bool, str | N
     return True, None, None
 
 
-def send_due(db: Session, sender: WhatsAppSender, now: datetime | None = None, limit: int = 50) -> int:
+def _send_push(db: Session, sender: push.PushSender, m: Message) -> str | None:
+    """Send one notification to every phone the customer has. Returns the receipt id,
+    or None when no phone can get it (app removed, notifications off, logged out)."""
+    tokens = push.tokens_for(db, m.customer_id)
+    if not tokens:
+        return None
+    if m.kind in PROMO_KINDS:
+        theatre = db.get(Theatre, m.theatre_id)
+        title = theatre.name if theatre else "Offer"
+    else:
+        title = PUSH_TITLES.get(m.kind, "Your booking")
+    data = {"kind": m.kind, **({"booking_id": str(m.booking_id)} if m.booking_id else {})}
+    res = sender.send(tokens, title, m.body, data)
+    if res.gone:
+        push.turn_off(db, res.gone)
+    if res.ids:
+        return res.ids[0]
+    if res.errors:
+        raise RuntimeError(res.errors[0])
+    return None
+
+
+def send_due(db: Session, sender: WhatsAppSender, now: datetime | None = None, limit: int = 50,
+             push_sender: push.PushSender | None = None) -> int:
     """Send what's due. Rows are locked with SKIP LOCKED, so two workers never send the same one."""
     now = now or datetime.now(UTC)
+    push_sender = push_sender or push.get_push_sender()
     due = list(db.scalars(select(Message).where(Message.status == "queued", Message.send_after <= now)
                           .order_by(Message.send_after).limit(limit).with_for_update(skip_locked=True)))
     sent = 0
@@ -276,12 +334,19 @@ def send_due(db: Session, sender: WhatsAppSender, now: datetime | None = None, l
             continue
         m.attempts += 1
         try:
-            m.provider_id = sender.send(m.mobile, m.body)
+            if m.channel == "push":
+                pid = _send_push(db, push_sender, m)
+                if pid is None:
+                    m.status, m.error = "skipped", "no phone with app notifications"
+                    continue
+                m.provider_id = pid
+            else:
+                m.provider_id = sender.send(m.mobile, m.body)
             m.status, m.sent_at, m.error = "sent", now, None
             sent += 1
             db.flush()  # the weekly limit check for the next message must see this one
         except Exception as e:  # noqa: BLE001 - any provider error: retry, then give up
-            log.warning("WhatsApp send failed for %s: %s", m.id, e)
+            log.warning("%s send failed for %s: %s", m.channel, m.id, e)
             m.error = str(e)[:200]
             if m.attempts >= MAX_ATTEMPTS:
                 m.status = "failed"

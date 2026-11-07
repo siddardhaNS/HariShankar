@@ -444,12 +444,14 @@ class InsightsOut(BaseModel):
 # ---------- WhatsApp messages ----------
 
 Audience = Literal["all", "recent_30", "recent_90"]
+Channel = Literal["whatsapp", "push", "both"]
 
 
 class CampaignIn(BaseModel):
     title: str = Field(min_length=3, max_length=80)
     body: str = Field(min_length=10, max_length=700)
     audience: Audience = "all"
+    channel: Channel = "whatsapp"
     send_after: datetime | None = None  # None: now (or 9 AM if it's night)
 
 
@@ -460,6 +462,7 @@ class CampaignOut(BaseModel):
     title: str
     body: str
     audience: Audience
+    channel: Channel = "whatsapp"
     status: str
     send_after: datetime
     recipients: int
@@ -471,12 +474,14 @@ class CampaignOut(BaseModel):
 
 class AudienceCount(BaseModel):
     audience: Audience
-    customers: int
+    customers: int       # turned on offers: reached on WhatsApp
+    with_app: int = 0    # of those, can get app notifications
 
 
 class MessageLogOut(BaseModel):
     id: uuid.UUID
     kind: str
+    channel: str = "whatsapp"
     mobile: str
     body: str
     status: str

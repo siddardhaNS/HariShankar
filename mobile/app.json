@@ -42,6 +42,14 @@
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#D7263D",
+          "defaultChannel": "default"
+        }
       ]
     ],
     "experiments": {

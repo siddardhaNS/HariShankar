@@ -9,6 +9,7 @@ import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { useNotificationTaps } from '@/lib/notifications';
 import { StaffProvider, useStaff } from '@/lib/staff';
 import { useColors } from '@/lib/theme';
 
@@ -20,6 +21,7 @@ function RootStack() {
   const { ready: staffReady } = useStaff();
   const ready = customerReady && staffReady;
   const [fontsLoaded] = useFonts({ Roboto_400Regular, Roboto_500Medium, Roboto_700Bold, RobotoCondensed_700Bold });
+  useNotificationTaps();
 
   useEffect(() => {
     if (ready && fontsLoaded) SplashScreen.hideAsync();

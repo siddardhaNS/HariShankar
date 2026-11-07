@@ -52,6 +52,12 @@ Over Wi-Fi instead of USB, put `EXPO_PUBLIC_API_URL=http://<your computer's LAN 
 
 **WhatsApp (development):** the provider isn't chosen yet, so the `worker` service prints each message to its log: `docker compose logs -f worker | grep -A4 "DEV WHATSAPP"`. It sends booking confirmations, refund messages, show reminders (9 AM on the day, and 1 hour before) and the owner's offers from the Messages page. A real provider is one class in `app/services/whatsapp.py`; each message kind becomes one pre-approved WhatsApp template.
 
+**App notifications:** every booking message and reminder also goes as a phone notification when the customer has the app with notifications allowed, and the owner can send offers on WhatsApp, as an app notification (free), or both. Tapping a booking notification opens the ticket. In development the worker prints them: `docker compose logs -f worker | grep -A3 "DEV PUSH"`. To send to real phones:
+
+1. Build the app with EAS (`npx eas-cli build --profile development --platform android`). Notifications don't work in Expo Go; the build gives the app its project id.
+2. Create a Firebase project for the Android package `com.harishankarpalace.app`, put its `google-services.json` in `mobile/` (and `"googleServicesFile": "./google-services.json"` under `android` in `app.json`), and upload the Firebase service account key once with `npx eas-cli credentials`.
+3. Set `PUSH_PROVIDER=expo` for the API and worker.
+
 ### Gate scanner (staff)
 
 In the app: Profile, or the login screen, then *Theatre staff? Open the gate scanner*. Staff log in with the same mobile number and PIN as the admin website (Owner, Manager or Gate staff). The scanner reads the ticket QR, checks its signature, and shows a big result: let in, already in, not paid, wrong show, too early, fake. Groups can enter in parts (2 now, 2 later); a wrong tap can be undone by the same person within 5 minutes. No QR? Type the booking ID. Gates open 60 minutes before the show.

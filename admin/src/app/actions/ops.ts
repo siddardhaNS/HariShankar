@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { api, ApiError } from "@/lib/api";
-import type { ActionResult, AdminBooking, Audience, Campaign, Layout, LayoutRow, Movie, Promotion, TheatrePayments } from "@/lib/types";
+import type { ActionResult, AdminBooking, Audience, Campaign, Channel, Layout, LayoutRow, Movie, Promotion, TheatrePayments } from "@/lib/types";
 
 async function run<T>(fn: () => Promise<T>, paths: string[]): Promise<ActionResult<T>> {
   try {
@@ -165,7 +165,7 @@ export async function setPromotionActive(id: string, is_active: boolean) {
 
 // ---------- WhatsApp messages ----------
 
-export async function sendCampaign(input: { title: string; body: string; audience: Audience; send_after: string | null }) {
+export async function sendCampaign(input: { title: string; body: string; audience: Audience; channel: Channel; send_after: string | null }) {
   return run(() => api<Campaign>("/api/admin/messages/campaigns", { method: "POST", body: JSON.stringify(input) }), ["/messages"]);
 }
 

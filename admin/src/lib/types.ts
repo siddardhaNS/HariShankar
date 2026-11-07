@@ -237,12 +237,15 @@ export type Insights = {
 };
 
 export type Audience = "all" | "recent_30" | "recent_90";
+export type Channel = "whatsapp" | "push" | "both";
+export type AudienceSize = { audience: Audience; customers: number; with_app: number };
 
 export type Campaign = {
   id: string;
   title: string;
   body: string;
   audience: Audience;
+  channel: Channel;
   status: "queued" | "sending" | "done";
   send_after: string;
   recipients: number;
@@ -255,6 +258,7 @@ export type Campaign = {
 export type MessageLog = {
   id: string;
   kind: string;
+  channel: "whatsapp" | "push";
   mobile: string;
   body: string;
   status: "queued" | "sent" | "failed" | "skipped";

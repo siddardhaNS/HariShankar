@@ -36,7 +36,7 @@ def clean(migrated):
     yield
     with engine.begin() as c:
         c.execute(text(
-            "TRUNCATE messages, campaigns, entries, ratings, promotions, otp_codes, audit_logs, booking_seats, bookings, seat_blocks, show_prices, shows, movies, "
+            "TRUNCATE push_tokens, messages, campaigns, entries, ratings, promotions, otp_codes, audit_logs, booking_seats, bookings, seat_blocks, show_prices, shows, movies, "
             "customers, seats, seat_classes, screens, staff_users, theatres CASCADE"
         ))
 
