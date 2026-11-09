@@ -74,8 +74,19 @@ class ExpoPushSender:
         return out
 
 
+class ChannelOff(Exception):
+    """This channel is switched off on this server: the message is skipped, not retried."""
+
+
+class OffPushSender:
+    def send(self, tokens: list[str], title: str, body: str, data: dict) -> PushResult:
+        raise ChannelOff("App notifications are off (PUSH_PROVIDER=off)")
+
+
 def get_push_sender() -> PushSender:
     s = get_settings()
+    if s.push_provider == "off":
+        return OffPushSender()
     if s.push_provider == "console":
         if not s.is_dev:
             raise RuntimeError("Console push is only for development. Set PUSH_PROVIDER=expo.")

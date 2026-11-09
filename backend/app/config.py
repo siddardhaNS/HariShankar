@@ -1,5 +1,7 @@
+import os
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,20 +32,33 @@ class Settings(BaseSettings):
     max_seats_per_booking: int = 10
     gst_rate_on_fee_bp: int = 1800     # 18% GST on the booking fee, in basis points
 
-    # WhatsApp (provider decided later; console prints to the log in development)
+    # WhatsApp (provider decided later; console prints to the log in development; off skips the messages)
     whatsapp_provider: str = "console"
 
-    # App notifications: console prints to the log in development; expo sends to phones
-    push_provider: str = "console"    # console | expo
+    # App notifications: console prints to the log in development; expo sends to phones; off skips them
+    push_provider: str = "console"    # console | expo | off
     expo_access_token: str = ""       # only if enhanced push security is on in the Expo account
 
     # Gate
     gate_opens_minutes_before: int = 60  # tickets can be scanned from this long before the show
     gate_undo_minutes: int = 5           # a wrong entry can be undone by the same staff for this long
 
+    # Vercel sends this with each scheduled call to /api/cron/tick
+    cron_secret: str = ""
+
+    @field_validator("database_url")
+    @classmethod
+    def use_psycopg_driver(cls, url: str) -> str:
+        """Hosted Postgres hands out postgres:// URLs; SQLAlchemy needs the driver named."""
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix):]
+        return url
+
     @property
     def is_dev(self) -> bool:
-        return self.app_env == "development"
+        # Never on Vercel, whatever APP_ENV says: this turns on test payments and printed login codes
+        return self.app_env == "development" and not os.environ.get("VERCEL")
 
     @property
     def cors_origin_list(self) -> list[str]:

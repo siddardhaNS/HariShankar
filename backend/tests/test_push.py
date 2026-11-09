@@ -44,6 +44,33 @@ def test_register_token_then_booking_goes_on_both_channels(client, db, owner, ha
     assert len(wa.sent) == 1
 
 
+def test_switched_off_channels_skip_messages_without_retrying(client, db, owner, hall):  # noqa: F811
+    show, seats = hall
+    h = app_login(client, db, "9876500805")
+    assert client.post("/api/app/push-tokens", headers=h, json={"token": TOKEN}).status_code == 204
+    paid(client, db, show, [seats["A1"]], "9876500805")
+
+    assert whatsapp.send_due(db, whatsapp.OffWhatsAppSender(), push_sender=push.OffPushSender()) == 0
+    db.commit()
+    messages = list(db.scalars(select(Message)))
+    assert sorted(m.channel for m in messages) == ["push", "whatsapp"]
+    assert {m.status for m in messages} == {"skipped"}
+    assert all("is off" in m.error or "are off" in m.error for m in messages)
+
+
+def test_one_channel_off_does_not_stop_the_other(client, db, owner, hall):  # noqa: F811
+    show, seats = hall
+    h = app_login(client, db, "9876500806")
+    assert client.post("/api/app/push-tokens", headers=h, json={"token": TOKEN}).status_code == 204
+    paid(client, db, show, [seats["A1"]], "9876500806")
+
+    pc = PushCapture()
+    assert whatsapp.send_due(db, whatsapp.OffWhatsAppSender(), push_sender=pc) == 1
+    db.commit()
+    assert len(pc.sent) == 1
+    assert {m.channel: m.status for m in db.scalars(select(Message))} == {"push": "sent", "whatsapp": "skipped"}
+
+
 def test_logout_and_dead_token_stop_notifications(client, db, owner, hall):  # noqa: F811
     show, seats = hall
     h = app_login(client, db, "9876500802")

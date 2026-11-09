@@ -76,6 +76,35 @@ docker compose run --rm api alembic revision --autogenerate -m "what changed"
 docker compose run --rm api alembic upgrade head
 ```
 
+## Deploy on Vercel
+
+The website and API deploy as one Vercel project (`vercel.json`), with Postgres from Neon.
+
+**Before customers can use the app:** no SMS provider is built yet, so customer login fails on Vercel. Add one in `app/services/otp.py`. The admin website and staff PIN logins work without one.
+
+1. **Database:** add Neon from the Vercel Marketplace, in the Singapore region (the closest to India, and it can't be changed later). Connect it to the project, so `DATABASE_URL` is set.
+2. **Environment variables** in the Vercel project:
+
+   | Name | Value |
+   |---|---|
+   | `APP_ENV` | `production` |
+   | `JWT_SECRET` | a long random string (`openssl rand -hex 32`) |
+   | `CRON_SECRET` | another long random string, letters and numbers only |
+   | `WHATSAPP_PROVIDER` | `off` until a provider is set up |
+   | `PUSH_PROVIDER` | `off` until the app is built with EAS, then `expo` |
+
+3. **Create the tables and the first Owner login** from your computer, using Neon's direct (not pooled) connection string. Run the first line again whenever a new migration is added:
+
+   ```sh
+   docker compose run --rm -e DATABASE_URL="<neon url>" api alembic upgrade head
+   docker compose run --rm -e DATABASE_URL="<neon url>" -e SEED_OWNER_MOBILE=<owner's number> -e SEED_OWNER_PIN=<temporary PIN> api python -m app.seed
+   ```
+
+4. **Deploy:** import the repository in Vercel, or run `npx vercel --prod`. Check `https://<your project>.vercel.app/health`.
+5. **Customer app:** rebuild it with `EXPO_PUBLIC_API_URL=https://<your project>.vercel.app`. Once no build needs plain http, turn off `usesCleartextTraffic` in `mobile/app.json`.
+
+**Scheduled work:** Vercel calls `/api/cron/tick` once a day at about 9:30 AM India time, because the Hobby plan allows no more than that. Unpaid bookings hold no seats, so a day's delay in expiring them only leaves them showing as pending for longer. Once messages are switched on, confirmations and reminders need a faster schedule. Pro allows every minute: `"schedule": "* * * * *"` in `vercel.json`. The Hobby plan is for personal, non-commercial use, so move to Pro before the theatre sells tickets through it.
+
 ## What's built (milestone 1: admin login)
 
 - Admin login with mobile number and PIN, issuing a 12-hour JWT stored in an httpOnly cookie.

@@ -1,11 +1,14 @@
 """Background worker: expires abandoned payments, adds show reminders and
 sends due WhatsApp messages and app notifications.
 
-Run with `python -m app.worker` (docker compose starts it as `worker`).
+Locally, `python -m app.worker` runs it in a loop (docker compose starts it as
+`worker`). On Vercel, a scheduled call to /api/cron/tick runs one pass.
 Safe to run more than one: messages are locked while sending and deduplicated.
 """
 import logging
 import time
+
+from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
 from app.services import bookings, insights, push, whatsapp
@@ -14,15 +17,19 @@ log = logging.getLogger("worker")
 EVERY_SECONDS = 30
 
 
+def run_once(db: Session) -> int:
+    bookings.expire_abandoned(db)
+    whatsapp.queue_reminders(db)
+    insights.queue_weekly_summaries(db)
+    db.commit()
+    sent = whatsapp.send_due(db, whatsapp.get_sender(), push_sender=push.get_push_sender())
+    db.commit()
+    return sent
+
+
 def tick() -> int:
     with SessionLocal() as db:
-        bookings.expire_abandoned(db)
-        whatsapp.queue_reminders(db)
-        insights.queue_weekly_summaries(db)
-        db.commit()
-        sent = whatsapp.send_due(db, whatsapp.get_sender(), push_sender=push.get_push_sender())
-        db.commit()
-        return sent
+        return run_once(db)
 
 
 def main() -> None:

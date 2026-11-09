@@ -65,8 +65,15 @@ class ConsoleWhatsAppSender:
         return f"console-{uuid.uuid4().hex[:12]}"
 
 
+class OffWhatsAppSender:
+    def send(self, mobile: str, body: str) -> str:
+        raise push.ChannelOff("WhatsApp is off (WHATSAPP_PROVIDER=off)")
+
+
 def get_sender() -> WhatsAppSender:
     s = get_settings()
+    if s.whatsapp_provider == "off":
+        return OffWhatsAppSender()
     if s.whatsapp_provider == "console":
         if not s.is_dev:
             raise RuntimeError("Console WhatsApp is only for development. Set WHATSAPP_PROVIDER.")
@@ -347,6 +354,8 @@ def send_due(db: Session, sender: WhatsAppSender, now: datetime | None = None, l
             m.status, m.sent_at, m.error = "sent", now, None
             sent += 1
             db.flush()  # the weekly limit check for the next message must see this one
+        except push.ChannelOff as e:  # not retried, so old messages don't go out when a provider is added later
+            m.status, m.error = "skipped", str(e)
         except Exception as e:  # noqa: BLE001 - any provider error: retry, then give up
             log.warning("%s send failed for %s: %s", m.channel, m.id, e)
             m.error = str(e)[:200]

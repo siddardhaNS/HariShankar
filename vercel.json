@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["sin1"],
+  "services": {
+    "admin": {
+      "root": "admin",
+      "framework": "nextjs",
+      "bindings": [
+        { "type": "service", "service": "backend", "format": "url", "env": "API_URL" }
+      ]
+    },
+    "backend": {
+      "root": "backend",
+      "framework": "fastapi",
+      "entrypoint": "app.main:app"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/health", "destination": { "service": "backend" } },
+    { "source": "/(.*)", "destination": { "service": "admin" } }
+  ],
+  "crons": [
+    { "path": "/api/cron/tick", "schedule": "0 4 * * *" }
+  ]
+}
