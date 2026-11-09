@@ -43,6 +43,13 @@ def get_sender() -> OtpSender:
 def request_code(db: Session, mobile: str, sender: OtpSender | None = None) -> None:
     s = get_settings()
     now = datetime.now(UTC)
+    test_code = s.otp_test_codes.get(mobile)
+    if test_code is None and sender is None:
+        try:
+            sender = get_sender()
+        except RuntimeError:
+            log.warning("Login code requested but no SMS provider is set up")
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Login isn't open yet. Please try again later") from None
     recent = db.scalar(
         select(func.count()).select_from(OtpCode).where(
             OtpCode.mobile == mobile, OtpCode.created_at > now - timedelta(hours=1)
@@ -55,10 +62,11 @@ def request_code(db: Session, mobile: str, sender: OtpSender | None = None) -> N
     for old in db.scalars(select(OtpCode).where(OtpCode.mobile == mobile, OtpCode.consumed.is_(False))):
         old.consumed = True
 
-    code = f"{secrets.randbelow(1_000_000):06d}"
+    code = test_code or f"{secrets.randbelow(1_000_000):06d}"
     db.add(OtpCode(mobile=mobile, code_hash=hash_pin(code), expires_at=now + timedelta(minutes=s.otp_ttl_minutes)))
     db.commit()
-    (sender or get_sender()).send(mobile, code)
+    if test_code is None:
+        sender.send(mobile, code)
 
 
 def verify_code(db: Session, mobile: str, code: str) -> None:

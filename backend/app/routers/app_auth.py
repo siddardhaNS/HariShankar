@@ -36,7 +36,7 @@ def current_customer(
 def request_otp(body: OtpRequestIn, db: Session = Depends(get_db)):
     otp.request_code(db, body.mobile)
     s = get_settings()
-    hint = "Development: the code is printed in the API log" if s.otp_provider == "console" else None
+    hint = "Development: the code is printed in the API log" if s.is_dev and s.otp_provider == "console" else None
     return OtpRequestOut(expires_in=s.otp_ttl_minutes * 60, dev_hint=hint)
 
 

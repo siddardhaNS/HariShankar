@@ -80,7 +80,7 @@ docker compose run --rm api alembic upgrade head
 
 The website and API deploy as one Vercel project (`vercel.json`), with Postgres from Neon.
 
-**Before customers can use the app:** no SMS provider is built yet, so customer login fails on Vercel. Add one in `app/services/otp.py`. The admin website and staff PIN logins work without one.
+**Customer login:** no SMS provider is built yet, so only the numbers in `OTP_TEST_LOGINS` can log in to the app, each with its own fixed code. Everyone else is told login isn't open yet. Add a provider in `app/services/otp.py` before opening it to the public. The admin website and staff PIN logins don't need one.
 
 1. **Database:** add Neon from the Vercel Marketplace, in the Singapore region (the closest to India, and it can't be changed later). Connect it to the project, so `DATABASE_URL` is set.
 2. **Environment variables** in the Vercel project:
@@ -92,6 +92,7 @@ The website and API deploy as one Vercel project (`vercel.json`), with Postgres 
    | `CRON_SECRET` | another long random string, letters and numbers only |
    | `WHATSAPP_PROVIDER` | `off` until a provider is set up |
    | `PUSH_PROVIDER` | `off` until the app is built with EAS, then `expo` |
+   | `OTP_TEST_LOGINS` | test numbers and random 6-digit codes, as `9876543210:482913,9876543211:605127` |
 
 3. **Create the tables and the first Owner login** from your computer, using Neon's direct (not pooled) connection string. Run the first line again whenever a new migration is added:
 

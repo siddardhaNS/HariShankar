@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     otp_ttl_minutes: int = 5
     otp_max_sends_per_hour: int = 5
     otp_max_attempts: int = 5
+    # Until an SMS provider is set up: numbers that can log in with a fixed code,
+    # as "9876543210:482913,9876543211:605127". Everyone else is told login isn't open yet.
+    otp_test_logins: str = ""
     payment_gateway: str = "upi"       # upi (direct, no gateway) | fake (dev/tests) | razorpay later
     payment_window_minutes: int = 15   # a pending booking older than this is abandoned
     max_seats_per_booking: int = 10
@@ -59,6 +62,11 @@ class Settings(BaseSettings):
     def is_dev(self) -> bool:
         # Never on Vercel, whatever APP_ENV says: this turns on test payments and printed login codes
         return self.app_env == "development" and not os.environ.get("VERCEL")
+
+    @property
+    def otp_test_codes(self) -> dict[str, str]:
+        pairs = (entry.split(":", 1) for entry in self.otp_test_logins.split(",") if ":" in entry)
+        return {mobile.strip(): code.strip() for mobile, code in pairs}
 
     @property
     def cors_origin_list(self) -> list[str]:
