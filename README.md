@@ -22,14 +22,11 @@ Needs Docker Desktop and Node 20+.
 
 ```sh
 cp .env.example .env            # then set JWT_SECRET and SEED_OWNER_PIN
-docker compose up -d            # Postgres + API on :8000 (runs migrations)
+docker compose up -d            # Postgres, API on :8000 (runs migrations), admin on :3000
 docker compose exec api python -m app.seed   # theatre + first Owner login
-
-cd admin
-npm install
-echo API_URL=http://localhost:8000 > .env.local
-npm run dev                     # http://localhost:3000
 ```
+
+The admin website is at http://localhost:3000. The first start takes a few minutes while it installs packages (`docker compose logs -f admin`). It runs in Docker because Windows Smart App Control blocks the native files Next.js and Tailwind load on Windows.
 
 Log in with `SEED_OWNER_MOBILE` and `SEED_OWNER_PIN`. On first login you'll be asked to choose your own PIN.
 
