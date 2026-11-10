@@ -166,7 +166,28 @@ export type GateVerdict =
   | 'not_found'
   | 'fake';
 
-export type GateEntry = { id: string; count: number; at: string; by: string; can_undo: boolean };
+export type GateEntry = {
+  id: string;
+  count: number;
+  at: string;
+  by: string;
+  can_undo: boolean;
+  offline?: boolean;
+  problem?: string | null;
+};
+
+/** A ticket people have entered on, for the gate's Scanned tab */
+export type ScannedTicket = {
+  booking_id: string;
+  code: string;
+  customer_name: string;
+  mobile_last4: string;
+  seats: string[];
+  seats_total: number;
+  seats_admitted: number;
+  last_at: string;
+  entries: GateEntry[];
+};
 
 export type GateTicket = {
   verdict: GateVerdict;

@@ -65,6 +65,19 @@ class GateTicket(BaseModel):
     entries: list[GateEntry] = []
 
 
+class ScannedTicket(BaseModel):
+    """A ticket people have entered on, for the gate's Scanned tab."""
+    booking_id: uuid.UUID
+    code: str
+    customer_name: str
+    mobile_last4: str
+    seats: list[str]
+    seats_total: int
+    seats_admitted: int
+    last_at: datetime
+    entries: list[GateEntry]
+
+
 class AdmitIn(BaseModel):
     count: int = Field(ge=1, le=50)
     show_id: uuid.UUID | None = None

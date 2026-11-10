@@ -29,6 +29,7 @@ from app.schemas.gate import (
     OfflineBooking,
     OfflineList,
     OfflineShow,
+    ScannedTicket,
     SyncIn,
     SyncOut,
     SyncResult,
@@ -87,6 +88,43 @@ def todays_shows(user: StaffUser = Depends(gate_staff), db: Session = Depends(ge
             seats_sold=sold.get(s.id, 0), seats_admitted=int(admitted.get(s.id) or 0),
         ))
     return out
+
+
+@router.get("/shows/{show_id}/scanned", response_model=list[ScannedTicket])
+def scanned(show_id: uuid.UUID, user: StaffUser = Depends(gate_staff), db: Session = Depends(get_db)):
+    """Tickets people have entered on for one show, latest first, for the Scanned tab."""
+    if db.scalar(select(Show.id).where(Show.id == show_id, Show.theatre_id == user.theatre_id)) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Show not found")
+    rows = db.execute(
+        select(Entry, StaffUser.name).join(StaffUser, StaffUser.id == Entry.scanned_by)
+        .where(Entry.show_id == show_id).order_by(Entry.created_at)
+    ).all()
+    if not rows:
+        return []
+    entries: dict[uuid.UUID, list[GateEntry]] = {}
+    for e, name in rows:
+        entries.setdefault(e.booking_id, []).append(GateEntry(
+            id=e.id, count=e.count, at=e.scanned_at or e.created_at, by=name, can_undo=False,
+            offline=e.offline, problem=e.problem))
+    bookings = db.execute(
+        select(Booking, Customer.mobile).join(Customer, Customer.id == Booking.customer_id)
+        .where(Booking.id.in_(entries))
+    ).all()
+    seats: dict[uuid.UUID, list[str]] = {}
+    for bid, r, n in db.execute(
+        select(BookingSeat.booking_id, Seat.row_label, Seat.number).join(Seat, Seat.id == BookingSeat.seat_id)
+        .where(BookingSeat.booking_id.in_(entries)).order_by(Seat.grid_row, Seat.grid_col)
+    ):
+        seats.setdefault(bid, []).append(f"{r}{n}")
+    out = [
+        ScannedTicket(
+            booking_id=b.id, code=b.code, customer_name=b.customer_name, mobile_last4=(mobile or "")[-4:],
+            seats=seats.get(b.id, []), seats_total=len(seats.get(b.id, [])), seats_admitted=b.seats_admitted,
+            last_at=max(e.at for e in entries[b.id]), entries=entries[b.id],
+        )
+        for b, mobile in bookings
+    ]
+    return sorted(out, key=lambda t: t.last_at, reverse=True)
 
 
 def _find(db: Session, user: StaffUser, scan: str) -> tuple[Booking | None, Verdict | None, str]:

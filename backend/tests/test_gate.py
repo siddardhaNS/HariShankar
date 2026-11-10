@@ -152,3 +152,26 @@ def test_other_theatre_cannot_scan(client, db, gate, now_show, theatre):
 
 def test_customer_token_cannot_use_gate(client, db, now_show):
     assert client.get("/api/gate/shows", headers=app_login(client, db, "9876500298")).status_code == 401
+
+
+def test_scanned_list_for_a_show(client, db, gate, now_show):
+    show, seats = now_show
+    first = paid(client, db, show, [seats["A1"], seats["A2"]], mobile="9876500211")
+    second = paid(client, db, show, [seats["A3"]], mobile="9876500212")
+    paid(client, db, show, [seats["A4"]], mobile="9876500213")  # bought, not here yet
+    open_gate(db, show)
+    h = login(client, GATE_MOBILE, GATE_PIN)
+
+    assert client.get(f"/api/gate/shows/{show.id}/scanned", headers=h).json() == []
+    for t, n in ((first, 1), (second, 1), (first, 1)):
+        bid = scan(client, h, t["qr"], show)["booking_id"]
+        assert client.post(f"/api/gate/bookings/{bid}/admit", headers=h, json={"count": n}).status_code == 200
+
+    rows = client.get(f"/api/gate/shows/{show.id}/scanned", headers=h).json()
+    assert [r["code"] for r in rows] == [first["code"], second["code"]]  # latest entry first
+    assert rows[0]["seats"] == ["A1", "A2"] and rows[0]["seats_admitted"] == 2 and len(rows[0]["entries"]) == 2
+    assert rows[0]["entries"][0]["by"] == "Ramu" and rows[0]["mobile_last4"] == "0211"
+    assert rows[1]["seats"] == ["A3"] and rows[1]["seats_admitted"] == 1
+
+    other = "00000000-0000-0000-0000-000000000000"
+    assert client.get(f"/api/gate/shows/{other}/scanned", headers=h).status_code == 404

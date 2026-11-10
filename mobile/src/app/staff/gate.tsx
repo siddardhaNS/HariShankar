@@ -9,7 +9,7 @@ import { time } from '@/lib/format';
 import * as offlineGate from '@/lib/gateOffline';
 import { useStaff } from '@/lib/staff';
 import { fonts, useColors, type Colors } from '@/lib/theme';
-import type { GateShow, GateTicket, GateVerdict } from '@/lib/types';
+import type { GateShow, GateTicket, GateVerdict, ScannedTicket } from '@/lib/types';
 
 const HEADLINE: Record<GateVerdict, string> = {
   ok: 'Let in',
@@ -55,6 +55,9 @@ export default function GateScreen() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const handling = useRef(false); // the camera fires many times a second for one QR
+  const [tab, setTab] = useState<'scan' | 'scanned'>('scan');
+  // The camera only opens when the staff member taps Start scanning
+  const [scanning, setScanning] = useState(false);
   // Offline: no internet, tickets checked against today's list saved on the phone
   const [offline, setOffline] = useState(false);
   const [listAt, setListAt] = useState<string | null>(() => offlineGate.load().list?.generated_at ?? null);
@@ -105,7 +108,10 @@ export default function GateScreen() {
       const every = setInterval(() => {
         void syncAndRefresh().then(loadShows);
       }, 60_000);
-      return () => clearInterval(every);
+      return () => {
+        clearInterval(every);
+        setScanning(false); // leaving the screen turns the camera off
+      };
     }, [loadShows, syncAndRefresh]),
   );
 
@@ -222,6 +228,21 @@ export default function GateScreen() {
     }
   };
 
+  const startScanning = async () => {
+    setErr(null);
+    if (!permission?.granted) {
+      const p = await requestPermission();
+      if (!p.granted) {
+        setErr(p.canAskAgain
+          ? 'The camera is needed to scan tickets. Tap Start scanning to ask again'
+          : 'Camera is turned off for this app. Turn it on in phone Settings, or type the booking ID below');
+        return;
+      }
+    }
+    handling.current = false;
+    setScanning(true);
+  };
+
   const next = () => {
     setResult(null);
     setJustIn(null);
@@ -283,6 +304,26 @@ export default function GateScreen() {
         )}
         {show && <T v="small" numberOfLines={1}>{show.movie_title}</T>}
 
+        <View style={[styles.tabs, { backgroundColor: c.chip }]} accessibilityRole="tablist">
+          {([['scan', 'Scan'], ['scanned', show ? `Scanned · ${show.seats_admitted}` : 'Scanned']] as const).map(([k, label]) => {
+            const on = tab === k;
+            return (
+              <Pressable
+                key={k}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                onPress={() => {
+                  setTab(k);
+                  if (k === 'scanned') setScanning(false);
+                }}
+                style={[styles.tab, on && { backgroundColor: c.card }]}
+              >
+                <T v="label" style={{ color: on ? c.ink : c.muted }}>{label}</T>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <OfflineStatus offline={offline} listAt={listAt} waiting={waiting} />
         {syncProblems.length > 0 && (
           <Banner kind="error" title="Synced, with problems to check">
@@ -295,8 +336,23 @@ export default function GateScreen() {
 
         {err && <Banner kind="error">{err}</Banner>}
 
-        {!result ? (
+        {tab === 'scanned' ? (
+          <ScannedList key={showId ?? "none"} showId={showId} offline={offline} admitted={show?.seats_admitted ?? 0} sold={show?.seats_sold ?? 0} />
+        ) : !result ? (
           <>
+            {!scanning ? (
+              <View style={[styles.ready, { backgroundColor: c.navy }]}>
+                <View style={styles.readyFrame} />
+                <T style={{ fontFamily: fonts.display, fontSize: 30, lineHeight: 34, color: '#FFFFFF', textAlign: 'center' }}>
+                  READY TO SCAN
+                </T>
+                <T v="small" style={{ color: '#C9CCDC', textAlign: 'center' }}>
+                  {show ? `${show.label} · ${time(show.starts_at)} · ${show.movie_title}` : 'Pick a show above'}
+                </T>
+                <Button title="Start scanning" onPress={startScanning} style={{ minWidth: 220, marginTop: 6 }} />
+              </View>
+            ) : (
+            <>
             <View style={[styles.camera, { backgroundColor: c.navy }]}>
               {permission?.granted ? (
                 <>
@@ -331,6 +387,9 @@ export default function GateScreen() {
               )}
             </View>
             <T v="small" style={{ textAlign: 'center' }}>Point at the QR on the customer&apos;s phone</T>
+            <Button title="Stop scanning" kind="secondary" onPress={() => setScanning(false)} />
+            </>
+            )}
 
             <Card style={{ gap: 10 }}>
               <T v="label">No QR? Type the booking ID</T>
@@ -365,6 +424,113 @@ export default function GateScreen() {
         )}
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/** Tickets people have entered on for the chosen show, latest first */
+function ScannedList({ showId, offline, admitted, sold }: { showId: string | null; offline: boolean; admitted: number; sold: number }) {
+  const c = useColors();
+  const [rows, setRows] = useState<ScannedTicket[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [find, setFind] = useState('');
+
+  const load = useCallback(async () => {
+    if (!showId) return;
+    setErr(null);
+    if (offline) {
+      setRows(offlineGate.scannedOffline(showId));
+      return;
+    }
+    setLoading(true);
+    try {
+      setRows(await api<ScannedTicket[]>(`/api/gate/shows/${showId}/scanned`, { as: 'staff', timeoutMs: 8_000 }));
+    } catch (e) {
+      if (offlineGate.isNetworkError(e)) setRows(offlineGate.scannedOffline(showId));
+      else setErr(e instanceof ApiError ? e.message : "Couldn't load the scanned tickets");
+    } finally {
+      setLoading(false);
+    }
+  }, [showId, offline]);
+
+  // Load when the tab opens or the show changes, then keep it fresh while it's open
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+      const every = setInterval(() => void load(), 30_000);
+      return () => clearInterval(every);
+    }, [load]),
+  );
+
+  if (!showId) return <Banner kind="info" title="No show picked">Pick a show above to see who&apos;s in.</Banner>;
+
+  const q = find.trim().toUpperCase();
+  const shown = (rows ?? []).filter(
+    (r) => !q || r.code.includes(q) || r.seats.some((s) => s === q || s.startsWith(q)) || r.customer_name.toUpperCase().includes(q),
+  );
+
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <View>
+          <T style={{ fontFamily: fonts.display, fontSize: 34, lineHeight: 38, color: c.ink }}>{admitted} / {sold}</T>
+          <T v="small">seats in · {rows ? `${rows.length} ticket${rows.length === 1 ? '' : 's'} scanned` : 'loading…'}</T>
+        </View>
+        <Pressable accessibilityRole="button" onPress={() => void load()} disabled={loading} hitSlop={10}>
+          <T v="label" style={{ color: c.brand }}>{loading ? 'Refreshing…' : 'Refresh'}</T>
+        </Pressable>
+      </View>
+      {offline && <T v="small" style={{ fontSize: 12 }}>No internet: showing today&apos;s saved list and this phone&apos;s scans.</T>}
+      {err && <Banner kind="error">{err}</Banner>}
+
+      <TextInput
+        value={find}
+        onChangeText={setFind}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        placeholder="Find a seat, booking ID or name"
+        placeholderTextColor={c.muted}
+        accessibilityLabel="Find a seat, booking ID or name"
+        style={[styles.search, { borderColor: c.field, color: c.ink, backgroundColor: c.card }]}
+      />
+
+      {rows && rows.length === 0 && <Banner kind="info" title="Nobody in yet">Tickets show up here once people are let in.</Banner>}
+      {rows && rows.length > 0 && shown.length === 0 && <T v="small">Nothing matches {find.trim()}.</T>}
+
+      {shown.map((r) => {
+        const done = r.seats_admitted >= r.seats_total;
+        const problem = r.entries.find((e) => e.problem)?.problem;
+        return (
+          <Card key={r.booking_id} style={{ gap: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <T v="label" numberOfLines={1}>{r.customer_name || 'Customer'}</T>
+                <T v="small" style={{ fontSize: 12 }}>{r.code} · Mobile ending {r.mobile_last4}</T>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <T style={{ fontFamily: fonts.display, fontSize: 24, lineHeight: 26, color: done ? c.ok : c.warnInk }}>
+                  {r.seats_admitted}/{r.seats_total}
+                </T>
+                <T v="small" style={{ fontSize: 12 }}>{done ? 'all in' : 'in'}</T>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {r.seats.map((s) => (
+                <View key={s} style={[styles.seat, { backgroundColor: done ? c.okSoft : c.chip }]}>
+                  <T v="label" style={{ fontSize: 14, color: done ? c.ok : c.ink }}>{s}</T>
+                </View>
+              ))}
+            </View>
+            {r.entries.map((e) => (
+              <T key={e.id} v="small" style={{ fontSize: 12 }}>
+                {e.count} in at {time(e.at)} by {e.by}{e.offline && !e.by.startsWith('this phone') ? ' (no internet)' : ''}
+              </T>
+            ))}
+            {problem && <T v="small" style={{ fontSize: 12, color: c.brand }}>{problem}</T>}
+          </Card>
+        );
+      })}
+    </View>
   );
 }
 
@@ -494,6 +660,11 @@ function Stepper({ label, a11y, disabled, onPress }: { label: string; a11y: stri
 
 const styles = StyleSheet.create({
   showChip: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  tabs: { flexDirection: 'row', borderRadius: 12, padding: 4 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 9 },
+  ready: { borderRadius: 18, padding: 24, alignItems: 'center', gap: 10 },
+  readyFrame: { width: 88, height: 88, borderRadius: 14, borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)', borderStyle: 'dashed', marginBottom: 6 },
+  search: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 16, fontFamily: fonts.medium },
   camera: { height: 320, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   frame: { width: 220, height: 220, borderRadius: 16, borderWidth: 3, borderColor: 'rgba(255,255,255,0.85)' },
   torch: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },

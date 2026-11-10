@@ -14,7 +14,7 @@
 import { File, Paths } from 'expo-file-system';
 
 import { api, ApiError } from './api';
-import type { GateEntry, GateShow, GateTicket, GateVerdict } from './types';
+import type { GateEntry, GateShow, GateTicket, GateVerdict, ScannedTicket } from './types';
 
 export type OfflineShow = {
   id: string;
@@ -240,4 +240,29 @@ export function undo(entryId: string): boolean {
   state.pending = state.pending.filter((e) => e.id !== entryId);
   save();
   return state.pending.length < before;
+}
+
+/**
+ * The Scanned tab without internet: tickets already in when today's list was
+ * saved, plus the ones let in on this phone since. Entries made on other
+ * phones meanwhile show up once the internet is back.
+ */
+export function scannedOffline(showId: string): ScannedTicket[] {
+  const { list, pending } = load();
+  if (!list) return [];
+  const out: ScannedTicket[] = [];
+  for (const b of list.bookings) {
+    if (b.show_id !== showId) continue;
+    const local = pending.filter((e) => e.booking_id === b.id);
+    if (b.seats_admitted === 0 && local.length === 0) continue;
+    const entries: GateEntry[] = local.map((e) => ({
+      id: e.id, count: e.count, at: e.scanned_at, by: 'this phone, not synced yet', can_undo: false, offline: true,
+    }));
+    out.push({
+      booking_id: b.id, code: b.code, customer_name: b.customer_name, mobile_last4: b.mobile_last4, seats: b.seats,
+      seats_total: b.seats_total, seats_admitted: b.seats_admitted + local.reduce((a, e) => a + e.count, 0),
+      last_at: local.at(-1)?.scanned_at ?? list.generated_at, entries,
+    });
+  }
+  return out.sort((x, y) => y.last_at.localeCompare(x.last_at));
 }
