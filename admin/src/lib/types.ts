@@ -284,3 +284,12 @@ export type MessageLog = {
   sent_at: string | null;
   booking_code: string | null;
 };
+
+export type Maintenance = {
+  on: boolean;
+  message: string;
+  password_set: boolean;
+  changed_at: string | null;
+  changed_by: string | null;
+  locked_until: string | null;
+};
