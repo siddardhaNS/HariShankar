@@ -1,12 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SeatMap } from '@/components/SeatMap';
+import { SeatPreview, SeatStats } from '@/components/SeatPreview';
 import { SeatView } from '@/components/SeatView';
 import { Banner, Button, Card, Chip, ErrorState, Header, Loading, T } from '@/components/ui';
 import { dayName, istDateKey, ordinal, rupees, time } from '@/lib/format';
+import { hallFrom, seatMetrics } from '@/lib/hall';
 import { fonts, useColors } from '@/lib/theme';
 import type { Seat, SeatGroup, SeatMap as SeatMapData } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -15,13 +17,6 @@ import { useApi } from '@/lib/useApi';
 function groupLabel(labels: string[]) {
   if (labels.length < 2) return labels[0] ?? '';
   return `${labels[0]}–${labels[labels.length - 1].replace(/^\D+/, '')}`;
-}
-
-function sideText(offset: number) {
-  const a = Math.abs(offset);
-  if (a < 0.25) return 'Centred';
-  if (a < 0.6) return offset < 0 ? 'Slightly left' : 'Slightly right';
-  return offset < 0 ? 'Left side' : 'Right side';
 }
 
 export default function PickSeats() {
@@ -35,6 +30,8 @@ export default function PickSeats() {
   const [groupSize, setGroupSize] = useState(Math.max(1, initial.length || 2));
   const [focusId, setFocusId] = useState<string | null>(initial[0] ?? null);
   const [limitHit, setLimitHit] = useState(false);
+  const [peekId, setPeekId] = useState<string | null>(null); // seat open in the full-screen view
+  const { width: winW } = useWindowDimensions();
   const best = useApi<SeatGroup[]>(`/api/app/shows/${id}/best-seats?n=${groupSize}`);
 
   const seatById = useMemo(() => new Map((data?.seats ?? []).map((s) => [s.id, s])), [data]);
@@ -44,6 +41,7 @@ export default function PickSeats() {
     [picked, seatById],
   );
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const geo = useMemo(() => (data?.seats.length ? hallFrom(data.seats) : null), [data]);
 
   if (loading) return <Loading />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
@@ -56,6 +54,8 @@ export default function PickSeats() {
   const toggle = (seat: Seat) => {
     setLimitHit(false);
     setFocusId(seat.id);
+    // Picking a seat opens the view from it
+    if (!selectedSet.has(seat.id) && selected.length < data.max_seats) setPeekId(seat.id);
     setPicked((cur) => {
       const valid = cur.filter((sid) => seatById.get(sid)?.state === 'free');
       if (valid.includes(seat.id)) return valid.filter((x) => x !== seat.id);
@@ -75,19 +75,11 @@ export default function PickSeats() {
 
   // View from the focused seat (or the best suggestion before anything is picked)
   const focusSeat = (focusId && seatById.get(focusId)) || seatById.get(best.data?.[0]?.seat_ids[0] ?? '') || null;
-  const rowsSorted = [...new Set(data.seats.map((s) => s.r))].sort((a, b) => a - b);
   const rowLetters = [...new Set([...data.seats].sort((a, b) => a.r - b.r).map((s) => s.row))];
-  let view = null;
-  if (focusSeat) {
-    const rowSeats = data.seats.filter((s) => s.r === focusSeat.r);
-    const minC = Math.min(...rowSeats.map((s) => s.c));
-    const maxC = Math.max(...rowSeats.map((s) => s.c));
-    const offset = maxC === minC ? 0 : ((focusSeat.c - minC) / (maxC - minC)) * 2 - 1;
-    const rowIndex = rowsSorted.indexOf(focusSeat.r);
-    const rowNumber = rowLetters.indexOf(focusSeat.row) + 1;
-    const depth = rowIndex / Math.max(1, rowsSorted.length - 1);
-    view = { seat: focusSeat, offset, rowIndex, rowNumber, sweet: depth > 0.35 && depth < 0.8 && Math.abs(offset) < 0.5 };
-  }
+  const view = focusSeat && geo
+    ? { seat: focusSeat, rowNumber: rowLetters.indexOf(focusSeat.row) + 1, label: seatMetrics(focusSeat, geo).label }
+    : null;
+  const peekSeat = (peekId && seatById.get(peekId)) || null;
 
   const show = data.show;
   const selectedLabels = selected.map((sid) => {
@@ -108,20 +100,36 @@ export default function PickSeats() {
           </Banner>
         ) : null}
 
-        {view && (
+        {view && geo && (
           <Card style={{ padding: 12 }}>
-            <SeatView rowIndex={view.rowIndex} rowCount={rowsSorted.length} offset={view.offset} title={show.movie.title} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open the full view from this seat"
+              onPress={() => setPeekId(view.seat.id)}
+            >
+              <SeatView
+                geo={geo}
+                seat={view.seat}
+                picked={selectedSet}
+                poster={show.movie.poster_url}
+                title={show.movie.title}
+                width={winW - 56}
+                height={Math.round((winW - 56) * 0.78)}
+              />
+            </Pressable>
             <View style={{ paddingHorizontal: 4, paddingTop: 12 }}>
-              <T v="eyebrow">View from your seat</T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <T v="eyebrow">View from your seat</T>
+                <Chip label={view.label} />
+              </View>
               <T v="display" style={{ marginTop: 4 }}>Row {view.seat.row} · Seat {view.seat.number}</T>
-              <T v="small" style={{ marginTop: 4 }}>
+              <T v="small" style={{ marginTop: 4, marginBottom: 10 }}>
                 {classOf.get(view.seat.class_id)} · {rupees(priceOf.get(view.seat.class_id) ?? 0)} · {ordinal(view.rowNumber)} row from the screen
               </T>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                {view.sweet && <Chip label="Best balance of size and comfort" />}
-                <Chip label={sideText(view.offset)} />
-              </View>
-              <T v="small" style={{ marginTop: 10, fontSize: 12 }}>Tap a seat to pick it and see the screen from there.</T>
+              <SeatStats seat={view.seat} geo={geo} compact />
+              <T v="small" style={{ marginTop: 10, fontSize: 12 }}>
+                Tap a seat to pick it and see the screen from there. Tap the picture for the full view.
+              </T>
             </View>
           </Card>
         )}
@@ -194,6 +202,27 @@ export default function PickSeats() {
           }
         />
       </ScrollView>
+
+      {geo && peekSeat && (
+        <SeatPreview
+          geo={geo}
+          seat={peekSeat}
+          picked={selectedSet}
+          className={classOf.get(peekSeat.class_id) ?? ''}
+          pricePaise={priceOf.get(peekSeat.class_id) ?? 0}
+          poster={show.movie.poster_url}
+          title={show.movie.title}
+          onClose={() => setPeekId(null)}
+          onChange={() => {
+            setPicked((cur) => cur.filter((x) => x !== peekSeat.id));
+            setPeekId(null);
+          }}
+          onPick={() => {
+            toggle(peekSeat);
+            setPeekId(null);
+          }}
+        />
+      )}
 
       <View style={[styles.bar, { backgroundColor: c.card, borderTopColor: c.line, paddingBottom: insets.bottom + 12 }]}>
         <View style={{ flex: 1 }}>
