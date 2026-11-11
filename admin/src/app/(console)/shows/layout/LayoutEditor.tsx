@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 import { saveLayout } from "@/app/actions/ops";
 import { Alert } from "@/components/Brand";
 import { SeatGrid } from "@/components/SeatGrid";
@@ -44,10 +44,35 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
   const [saved, setSaved] = useState<LayoutRow[]>(initial.rows);
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [active, setActive] = useState<number | null>(null);
 
   const preview = useMemo(() => previewSeats(rows), [rows]);
   const classOptions = [...new Set([...DEFAULT_CLASSES, ...rows.map((r) => r.class_name)])];
   const dirty = JSON.stringify(rows) !== JSON.stringify(saved);
+
+  // Seats per class, front to back, for the summary and the class headings
+  const classTotals = useMemo(() => {
+    const out = new Map<string, { rows: number; seats: number }>();
+    for (const r of rows) {
+      const name = r.class_name.trim() || "Unnamed";
+      const t = out.get(name) ?? { rows: 0, seats: 0 };
+      out.set(name, { rows: t.rows + 1, seats: t.seats + r.seats });
+    }
+    return out;
+  }, [rows]);
+
+  // The row being pointed at or edited lights up in the preview
+  const activeLabel = active !== null ? rows[active]?.label : undefined;
+  const highlighted = useMemo(
+    () => new Set(activeLabel ? preview.seats.filter((s) => s.row === activeLabel).map((s) => s.id) : []),
+    [activeLabel, preview.seats],
+  );
+
+  const discard = () => {
+    setMsg(null);
+    setRows(saved);
+    setAisleText(saved.map((r) => r.aisles_after.join(", ")));
+  };
 
   const update = (i: number, patch: Partial<LayoutRow>) => {
     setMsg(null);
@@ -94,14 +119,28 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
     });
 
   return (
-    <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-      <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <div>
-            <h2 className="font-bold">Rows, front to back</h2>
-            <p className="text-xs text-muted">Row A is nearest the screen. Seats are numbered from the left.</p>
+    <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <section className="card">
+        <div className="border-b border-line px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-bold">Rows, front to back</h2>
+              <p className="text-xs text-muted">Row A is nearest the screen. Seats are numbered from the left.</p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold leading-none">{preview.seats.length}</div>
+              <div className="mt-1 text-xs text-muted">seats in {rows.length} row{rows.length === 1 ? "" : "s"}</div>
+            </div>
           </div>
-          <span className="text-sm text-muted">{preview.seats.length} seats</span>
+          {classTotals.size > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[...classTotals.entries()].map(([name, t]) => (
+                <span key={name} className="rounded-full bg-canvas px-3 py-1 text-xs text-ink-2">
+                  <span className="font-bold">{name}</span> · {t.seats} seats
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[600px] text-sm">
@@ -116,9 +155,28 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
                 <th className="px-2 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
-              {rows.map((row, i) => (
-                <tr key={i}>
+            <tbody onMouseLeave={() => setActive(null)}>
+              {rows.map((row, i) => {
+                const cname = row.class_name.trim() || "Unnamed";
+                const newClass = i === 0 || (rows[i - 1].class_name.trim() || "Unnamed") !== cname;
+                const t = classTotals.get(cname);
+                return (
+                <Fragment key={i}>
+                {newClass && (
+                  <tr className="bg-canvas/60">
+                    <td colSpan={7} className="border-t border-line px-4 py-1.5 text-xs">
+                      <span className="font-bold uppercase tracking-wider text-ink-2">{cname}</span>
+                      {t && <span className="text-muted"> · {t.rows} row{t.rows === 1 ? "" : "s"} · {t.seats} seats</span>}
+                    </td>
+                  </tr>
+                )}
+                <tr
+                  onMouseEnter={() => setActive(i)}
+                  onFocus={() => setActive(i)}
+                  className={`border-t border-line transition-colors ${active === i ? "bg-brand-soft/40" : ""} ${
+                    row.gap_after ? "border-b-4 border-b-canvas" : ""
+                  }`}
+                >
                   <td className="px-4 py-2">
                     <input
                       value={row.label}
@@ -193,28 +251,50 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
                       className="rounded px-2 py-1 font-bold text-brand hover:bg-brand-soft">✕</button>
                   </td>
                 </tr>
-              ))}
+                </Fragment>
+                );
+              })}
             </tbody>
           </table>
           <datalist id="class-names">
             {classOptions.map((c) => <option key={c} value={c} />)}
           </datalist>
         </div>
-        <div className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-4">
-          <button type="button" onClick={addRow} className="btn-secondary">+ Add row</button>
-          <div className="flex-1" />
-          {dirty && <span className="text-xs text-muted">Unsaved changes</span>}
-          <button type="button" onClick={save} disabled={pending || !rows.length} className="btn-primary">
-            {pending ? "Saving…" : "Save layout"}
-          </button>
+        {/* Stays at the bottom of the screen so Save is always in reach */}
+        <div className="sticky bottom-0 z-10 rounded-b-2xl border-t border-line bg-white/95 px-5 py-4 backdrop-blur">
+          {msg && <div className="mb-3"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={addRow} className="btn-secondary">+ Add row</button>
+            <div className="flex-1" />
+            {dirty && (
+              <>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
+                  <span className="h-2 w-2 rounded-full bg-[#f5b301]" aria-hidden />
+                  Unsaved changes
+                </span>
+                <button type="button" onClick={discard} disabled={pending} className="btn px-3 text-sm text-muted hover:bg-canvas">
+                  Discard
+                </button>
+              </>
+            )}
+            <button type="button" onClick={save} disabled={pending || !rows.length || !dirty} className="btn-primary">
+              {pending ? "Saving…" : "Save layout"}
+            </button>
+          </div>
         </div>
-        {msg && <div className="px-5 pb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
       </section>
 
-      <section className="card p-5">
-        <h2 className="mb-1 font-bold">Preview</h2>
-        <p className="mb-5 text-xs text-muted">What customers see in the app. Changing a row keeps the tickets already sold for it.</p>
-        <SeatGrid seats={preview.seats} classes={preview.classes} />
+      <section className="card p-5 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="mb-1 font-bold">Preview</h2>
+            <p className="text-xs text-muted">What customers see in the app. Changing a row keeps the tickets already sold for it.</p>
+          </div>
+          {activeLabel && (
+            <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-[#8a1424]">Row {activeLabel}</span>
+          )}
+        </div>
+        <SeatGrid seats={preview.seats} classes={preview.classes} selected={highlighted} />
       </section>
     </div>
   );
