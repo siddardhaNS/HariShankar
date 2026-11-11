@@ -33,7 +33,7 @@ function previewSeats(rows: LayoutRow[]): { seats: AdminSeat[]; classes: { id: s
       });
       c += row.aisles_after.includes(n) ? 2 : 1;
     }
-    r += 1;
+    r += row.gap_after ? 2 : 1;
   }
   return { seats, classes };
 }
@@ -60,7 +60,7 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
     setRows((rs) => [
       ...rs,
       { label: nextLabel(rs), class_name: last?.class_name ?? "Second class", seats: last?.seats ?? 12,
-        aisles_after: last?.aisles_after ?? [6], indent: last?.indent ?? 0 },
+        aisles_after: last?.aisles_after ?? [6], indent: last?.indent ?? 0, gap_after: false },
     ]);
     setAisleText((a) => [...a, (last?.aisles_after ?? [6]).join(", ")]);
   };
@@ -112,6 +112,7 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
                 <th className="px-2 py-2 font-bold">Seats</th>
                 <th className="px-2 py-2 font-bold" title="An aisle comes after these seat numbers">Aisle after</th>
                 <th className="px-2 py-2 font-bold" title="Empty spaces before seat 1">Indent</th>
+                <th className="px-2 py-2 font-bold" title="Leave a walkway between this row and the next">Gap after</th>
                 <th className="px-2 py-2" />
               </tr>
             </thead>
@@ -169,6 +170,17 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
                       onChange={(e) => update(i, { indent: Math.max(0, Math.min(20, Number(e.target.value) || 0)) })}
                       aria-label="Indent"
                       className="field w-16 px-2 py-1.5"
+                    />
+                  </td>
+                  <td className="px-2 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={!!row.gap_after}
+                      disabled={i === rows.length - 1}
+                      onChange={(e) => update(i, { gap_after: e.target.checked })}
+                      aria-label={`Gap after row ${row.label}`}
+                      title="Leave a walkway between this row and the next"
+                      className="h-4 w-4 accent-brand disabled:opacity-30"
                     />
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-right">

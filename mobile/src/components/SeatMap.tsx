@@ -124,9 +124,15 @@ export const SeatMap = memo(function SeatMap({ seats, classes, selected, onToggl
 
   const out: React.ReactNode[] = [];
   let lastClass: string | null = null;
+  let lastR: number | null = null;
   for (const r of rowKeys) {
     const rowSeats = rows.get(r)!;
     const classId = rowSeats[0].class_id;
+    // An empty grid row inside a class is a walkway
+    if (classId === lastClass && lastR !== null && r - lastR > 1) {
+      out.push(<View key={`g${r}`} style={{ height: Math.round(cell * 0.7) }} />);
+    }
+    lastR = r;
     if (classId !== lastClass) {
       const k = className.get(classId);
       out.push(

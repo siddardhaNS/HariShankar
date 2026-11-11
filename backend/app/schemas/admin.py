@@ -16,6 +16,7 @@ class LayoutRow(BaseModel):
     seats: Annotated[int, Field(ge=1, le=60)]
     aisles_after: list[int] = []  # an empty column after these seat numbers
     indent: Annotated[int, Field(ge=0, le=20)] = 0  # empty columns before seat 1
+    gap_after: bool = False  # a walkway (empty grid row) after this row
 
     @field_validator("aisles_after")
     @classmethod

@@ -20,7 +20,7 @@ export type LoginResponse = Me & { access_token: string; expires_in: number };
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
-export type LayoutRow = { label: string; class_name: string; seats: number; aisles_after: number[]; indent: number };
+export type LayoutRow = { label: string; class_name: string; seats: number; aisles_after: number[]; indent: number; gap_after?: boolean };
 export type Layout = { screen_id: string; rows: LayoutRow[]; total_seats: number; classes: string[] };
 
 export type MovieStatus = "coming_soon" | "now_showing" | "archived";

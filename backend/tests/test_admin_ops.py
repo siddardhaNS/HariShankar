@@ -55,6 +55,19 @@ def test_layout_round_trip(client, setup_hall):
     assert layout["rows"][3]["indent"] == 1
 
 
+def test_layout_gap_after_row(client, setup_hall):
+    h, _, _ = setup_hall
+    rows = [dict(r) for r in LAYOUT["rows"]]
+    rows[0]["gap_after"] = True  # walkway between A and B
+    rows[1]["gap_after"] = True  # walkway between B and C, on top of the class gap
+    r = client.put("/api/admin/layout", headers=h, json={"rows": rows})
+    assert r.status_code == 200, r.text
+    assert [row["gap_after"] for row in r.json()["rows"]] == [True, True, False, False]
+    seats = client.get("/api/admin/seatmap", headers=h).json()["seats"]
+    first_r = {s["row"]: s["r"] for s in seats if s["number"] == 1}
+    assert first_r == {"A": 1, "B": 3, "C": 6, "D": 8}
+
+
 def test_create_week_skips_overlaps(client, setup_hall):
     h, _, movie = setup_hall
     # 14:30 + 150 min + 15 interval ends 17:15; 17:00 overlaps, 18:30 is fine

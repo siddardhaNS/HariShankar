@@ -26,14 +26,19 @@ export function SeatGrid({ seats, classes, selected, onToggle, onRow, pickBooked
   const rowList = [...rows.keys()]
     .sort((a, b) => a - b)
     .map((r) => [...rows.get(r)!].sort((a, b) => a.c - b.c))
-    .map((rowSeats, i, all) => ({ rowSeats, header: i === 0 || all[i - 1][0].class_id !== rowSeats[0].class_id }));
+    .map((rowSeats, i, all) => {
+      const header = i === 0 || all[i - 1][0].class_id !== rowSeats[0].class_id;
+      // An empty grid row inside a class is a walkway
+      const gap = !header && rowSeats[0].r - all[i - 1][0].r > 1;
+      return { rowSeats, header, gap };
+    });
 
   return (
     <div className="overflow-x-auto pb-2">
       <div className="mx-auto w-max">
         <div className="mx-8 mb-1 h-3 rounded-[50%/100%_100%_0_0] border-t-4 border-brand" />
         <p className="mb-4 text-center text-[11px] font-bold tracking-[0.2em] text-muted">SCREEN</p>
-        {rowList.map(({ rowSeats, header }) => {
+        {rowList.map(({ rowSeats, header, gap }) => {
           const byCol = new Map(rowSeats.map((s) => [s.c, s]));
           const cls = rowSeats[0].class_id;
           return (
@@ -43,6 +48,7 @@ export function SeatGrid({ seats, classes, selected, onToggle, onRow, pickBooked
                   {className.get(cls)}
                 </p>
               )}
+              {gap && <div className="h-5" aria-hidden />}
               <div className="flex items-center gap-1 py-[2px]">
                 <button
                   type="button"

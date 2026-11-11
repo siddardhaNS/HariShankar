@@ -38,11 +38,17 @@ def layout_rows(db: Session, screen: Screen) -> list[LayoutRow]:
     for s in seats:
         rows.setdefault(s.grid_row, []).append(s)
     out = []
-    for _, rs in sorted(rows.items()):
+    ordered = sorted(rows.items())
+    for i, (grid_row, rs) in enumerate(ordered):
         rs.sort(key=lambda s: s.number)
         aisles = [a.number for a, b in zip(rs, rs[1:], strict=False) if b.grid_col - a.grid_col > 1]
+        gap = False
+        if i + 1 < len(ordered):
+            nxt = ordered[i + 1][1][0]
+            class_gap = 1 if nxt.seat_class_id != rs[0].seat_class_id else 0
+            gap = nxt.grid_row - grid_row - 1 > class_gap
         out.append(LayoutRow(label=rs[0].row_label, class_name=names[rs[0].seat_class_id], seats=len(rs),
-                             aisles_after=aisles, indent=rs[0].grid_col - 1))
+                             aisles_after=aisles, indent=rs[0].grid_col - 1, gap_after=gap))
     return out
 
 
@@ -97,7 +103,7 @@ def save_layout(body: LayoutIn, user: StaffUser = Depends(manage), db: Session =
             seat.grid_col = col
             seat.is_active = True
             col += 2 if n in row.aisles_after else 1
-        grid_row += 1
+        grid_row += 2 if row.gap_after else 1  # an empty grid row is a walkway
 
     removed = [s for key, s in existing.items() if key not in wanted and s.is_active]
     if removed:
