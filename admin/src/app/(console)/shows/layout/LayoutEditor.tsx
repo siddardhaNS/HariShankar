@@ -94,7 +94,7 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
     });
 
   return (
-    <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <section className="card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
           <div>
@@ -104,7 +104,7 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
           <span className="text-sm text-muted">{preview.seats.length} seats</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[600px] text-sm">
             <thead className="text-left text-xs uppercase tracking-wider text-muted">
               <tr>
                 <th className="px-4 py-2 font-bold">Row</th>
@@ -133,7 +133,7 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
                       value={row.class_name}
                       onChange={(e) => update(i, { class_name: e.target.value })}
                       aria-label="Class"
-                      className="field min-w-36 px-2 py-1.5"
+                      className="field w-36 px-2 py-1.5"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -144,7 +144,7 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
                       value={row.seats}
                       onChange={(e) => update(i, { seats: Math.max(1, Math.min(60, Number(e.target.value) || 1)) })}
                       aria-label="Seats in row"
-                      className="field w-20 px-2 py-1.5"
+                      className="field w-16 px-2 py-1.5"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -158,7 +158,7 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
                       }}
                       placeholder="e.g. 6"
                       aria-label="Aisle after seat numbers"
-                      className="field w-28 px-2 py-1.5"
+                      className="field w-24 px-2 py-1.5"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -189,7 +189,8 @@ export function LayoutEditor({ initial }: { initial: Layout }) {
                     <button type="button" onClick={() => move(i, 1)} disabled={i === rows.length - 1} aria-label="Move down"
                       className="rounded px-2 py-1 text-muted hover:bg-canvas disabled:opacity-30">↓</button>
                     <button type="button" onClick={() => removeRow(i)} aria-label={`Remove row ${row.label}`}
-                      className="rounded px-2 py-1 text-brand hover:bg-brand-soft">Remove</button>
+                      title={`Remove row ${row.label}`}
+                      className="rounded px-2 py-1 font-bold text-brand hover:bg-brand-soft">✕</button>
                   </td>
                 </tr>
               ))}
