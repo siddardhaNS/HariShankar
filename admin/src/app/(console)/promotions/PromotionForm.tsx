@@ -169,14 +169,18 @@ export function PromotionForm({ promo }: { promo: Promotion | null }) {
             <input id="min" type="number" min={1} max={10} value={p.min_tickets} onChange={(e) => set({ min_tickets: toInt(e.target.value) ?? 1 })} className="field" />
           </div>
           <div>
-            <label htmlFor="per" className={label}>Per customer</label>
+            <label htmlFor="per" className={label}>Uses per customer</label>
             <input id="per" type="number" min={1} placeholder="Any" value={p.per_customer ?? ""} onChange={(e) => set({ per_customer: toInt(e.target.value) })} className="field" />
           </div>
           <div>
-            <label htmlFor="max" className={label}>Total uses</label>
+            <label htmlFor="max" className={label}>Max bookings</label>
             <input id="max" type="number" min={1} placeholder="No limit" value={p.max_uses ?? ""} onChange={(e) => set({ max_uses: toInt(e.target.value) })} className="field" />
           </div>
         </div>
+        <p className="-mt-2 text-xs text-muted">
+          Max bookings: the code stops working after this many bookings in all, for example the first 50 bookings.
+          A booking counts once however many seats it has. Uses per customer: how many times one person can use it.
+        </p>
         <div className="space-y-2 text-sm">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={p.show_in_app} onChange={(e) => set({ show_in_app: e.target.checked })} className="size-4 accent-brand" />

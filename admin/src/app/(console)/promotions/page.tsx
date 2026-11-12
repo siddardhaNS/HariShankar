@@ -48,7 +48,7 @@ export default async function PromotionsPage({ searchParams }: PageProps<"/promo
                     <div className="mt-1 text-sm text-muted">{p.details} · {validity(p)}</div>
                   </div>
                   <div className="w-36 text-sm">
-                    <div>{p.uses}{p.max_uses ? ` of ${p.max_uses}` : ""} used</div>
+                    <div>{p.uses}{p.max_uses ? ` of ${p.max_uses}` : ""} booking{(p.max_uses ?? p.uses) === 1 ? "" : "s"}</div>
                     <div className="text-muted">{rupees(p.discount_given_paise)} off</div>
                   </div>
                   <ActiveToggle id={p.id} active={p.is_active} />
