@@ -144,6 +144,11 @@ export const SeatMap = memo(function SeatMap({ seats, classes, selected, onToggl
           <View style={[styles.rule, { backgroundColor: 'rgba(246,196,83,0.25)' }]} />
         </View>,
       );
+      if (k?.description) {
+        out.push(
+          <Text key={`d${r}`} style={[styles.classNote, { color: HALL.freeText }]}>{k.description}</Text>,
+        );
+      }
       lastClass = classId;
     }
     const byCol = new Map(rowSeats.map((s) => [s.c, s]));
@@ -221,6 +226,7 @@ const styles = StyleSheet.create({
   classHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, marginBottom: 6, alignSelf: 'stretch', paddingHorizontal: 16 },
   rule: { flex: 1, height: 1 },
   classText: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.4 },
+  classNote: { fontFamily: fonts.regular, fontSize: 11, textAlign: 'center', marginTop: -2, marginBottom: 6, paddingHorizontal: 24 },
   legend: { flexDirection: 'row', gap: 18, justifyContent: 'center', marginTop: 10, marginBottom: 2 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 });

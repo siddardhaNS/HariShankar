@@ -52,6 +52,8 @@ class SeatClass(IdMixin, TheatreScoped, Base):
     screen_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("screens.id"), index=True)
     name: Mapped[str] = mapped_column(String(40))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # What the seats are like (cushioned, pushback...), shown to customers
+    description: Mapped[str] = mapped_column(String(200), default="", server_default="")
 
 
 class Seat(IdMixin, TheatreScoped, Base):
