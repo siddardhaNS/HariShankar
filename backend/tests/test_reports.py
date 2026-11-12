@@ -67,3 +67,30 @@ def test_owner_only_and_range_checks(client, db, owner):
     client.post("/api/admin/staff", headers=h, json={"name": "Man", "mobile": "9000000005", "role": "manager", "pin": "135790"})
     m = login(client, "9000000005", "135790")
     assert client.get("/api/admin/reports", headers=m).status_code == 403
+
+
+def test_payments_excel_one_line_per_booking(client, db, owner, hall):  # noqa: F811
+    import io
+
+    from openpyxl import load_workbook
+
+    show, seats = hall
+    h = login(client)
+    a = paid(client, db, show, [seats["A1"], seats["A2"]], "9876500431")
+    b = paid(client, db, show, [seats["B1"]], "9876500432")
+    client.post(f"/api/admin/bookings/{b['id']}/refund", headers=h, json={"reason": "Customer asked"})
+    # By the day it was paid (today), not the show date (tomorrow): the default range ends today
+    r = client.get("/api/admin/reports/payments.xlsx", headers=h)
+    assert r.status_code == 200, r.text
+    ws = load_workbook(io.BytesIO(r.content)).active
+    rows = [[c.value for c in row] for row in ws.iter_rows(min_row=5)]
+    by_code = {row[1]: row for row in rows if row[1] not in (None, "")}
+    assert set(by_code) == {a["code"], b["code"]}
+    assert by_code[a["code"]][6] == "A1 A2" and by_code[a["code"]][12] == 347.2
+    assert by_code[a["code"]][15] == "Paid" and by_code[b["code"]][15] == "Refunded"
+    assert by_code[b["code"]][16] == 173.6
+    total = rows[-1]
+    assert total[0] == "Total" and total[12] == round(347.2 + 173.6, 2)
+
+    # Needs the owner's login
+    assert client.get("/api/admin/reports/payments.xlsx").status_code == 401

@@ -110,7 +110,7 @@ export default async function RefundsPage({ searchParams }: PageProps<"/refunds"
               ))}
               <form action="/refunds" className="ml-auto flex gap-2">
                 {[...params.entries()].filter(([k]) => k !== "q").map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-                <input name="q" defaultValue={params.get("q") ?? ""} placeholder="Booking ID, name or mobile" aria-label="Search refunds" className="field h-9 w-56 py-1 text-sm" />
+                <input name="q" defaultValue={params.get("q") ?? ""} placeholder="Booking ID, name, mobile or UPI ref" aria-label="Search refunds" className="field h-9 w-56 py-1 text-sm" />
                 <button type="submit" className="btn-secondary h-9 px-3 py-1 text-sm">Search</button>
               </form>
             </div>

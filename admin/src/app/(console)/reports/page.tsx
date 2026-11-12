@@ -40,7 +40,12 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
 
   return (
     <>
-      <PageHeader title="Reports" subtitle="Collection, seats, refunds and GST, for your accounts" />
+      <PageHeader title="Reports" subtitle="Collection, seats, refunds and GST, for your accounts">
+        <a href={`/reports/payments?start=${r.start}&end=${r.end}`} className="btn-secondary px-3 py-1.5 text-sm"
+          title="Every payment in these dates, one line per booking, with its UPI reference. By the day it was paid.">
+          Download payments (Excel)
+        </a>
+      </PageHeader>
       <RangePicker path="/reports" start={r.start} end={r.end} />
 
       <Tiles

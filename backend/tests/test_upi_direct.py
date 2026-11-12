@@ -116,3 +116,12 @@ def test_upi_id_must_look_like_one(client, owner):
     h = login(client)
     r = client.put("/api/admin/theatre/payments", headers=h, json={"upi_id": "not a upi id", "upi_name": "X Y"})
     assert r.status_code == 422
+
+
+def test_find_booking_by_upi_reference(client, db, upi, hall):  # noqa: F811
+    show, seats = hall
+    ch = app_login(client, db, "9876500141")
+    bid = start(client, ch, show, [seats["B5"]]).json()["booking_id"]
+    client.post(f"/api/app/bookings/{bid}/upi-ref", headers=ch, json={"utr": "412345678941"})
+    found = client.get("/api/admin/bookings", headers=upi, params={"q": "412345678941"}).json()
+    assert [b["id"] for b in found] == [bid]

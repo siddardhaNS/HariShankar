@@ -6,6 +6,7 @@ row matches what happened in the hall that day. A single theatre has a few
 hundred bookings a day at most, so the numbers are added up in Python after two
 simple queries; that keeps the rules readable.
 """
+import io
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -241,3 +242,99 @@ def insights(db: Session, theatre_id: uuid.UUID, start: date, end: date, f: Filt
         "stars": _bar(["5", "4", "3", "2", "1"], Counter(str(x.stars) for x in rated)),
         "comments": comments,
     }
+
+
+# ---------- Payments, one line per booking ----------
+
+PAYMENT_STATUS = {BookingStatus.confirmed: "Paid", BookingStatus.refunded: "Refunded",
+                  BookingStatus.cancelled: "Show cancelled"}
+METHOD_NAMES = {"upi": "UPI", "card": "Card", "netbanking": "Net banking"}
+
+
+def payments(db: Session, theatre_id: uuid.UUID, start: date, end: date) -> list[dict]:
+    """Every booking whose money came in between start and end (by the day the
+    payment was confirmed, in the theatre's time zone), with its UPI reference
+    or gateway payment ID, for GST filing and matching against the bank."""
+    theatre = db.get(Theatre, theatre_id)
+    tz = ZoneInfo(theatre.timezone if theatre else "Asia/Kolkata")
+    lo = datetime.combine(start, time.min, tz)
+    hi = datetime.combine(end + timedelta(days=1), time.min, tz)
+    # A seat clash after paying is refunded without ever being confirmed, but the money still came in
+    paid_at = func.coalesce(Booking.confirmed_at, Booking.created_at)
+    rows = list(db.scalars(
+        select(Booking).where(
+            Booking.theatre_id == theatre_id, paid_at >= lo, paid_at < hi,
+            Booking.status.in_(tuple(PAYMENT_STATUS)),
+            Booking.confirmed_at.is_not(None) | Booking.upi_ref.is_not(None) | Booking.gateway_payment_id.is_not(None),
+        ).order_by(paid_at)
+    ))
+    if not rows:
+        return []
+    ids = [b.id for b in rows]
+    seats: dict[uuid.UUID, list[str]] = {}
+    for bid, row, num in db.execute(
+        select(BookingSeat.booking_id, Seat.row_label, Seat.number).join(Seat, Seat.id == BookingSeat.seat_id)
+        .where(BookingSeat.booking_id.in_(ids)).order_by(Seat.grid_row, Seat.grid_col)
+    ):
+        seats.setdefault(bid, []).append(f"{row}{num}")
+    shows = {s.id: s for s in db.scalars(select(Show).where(Show.id.in_({b.show_id for b in rows})))}
+    titles = dict(db.execute(select(Movie.id, Movie.title).where(Movie.id.in_({s.movie_id for s in shows.values()}))).all())
+    mobiles = dict(db.execute(select(Customer.id, Customer.mobile).where(Customer.id.in_({b.customer_id for b in rows}))).all())
+    out = []
+    for b in rows:
+        s = shows[b.show_id]
+        out.append({
+            "paid_at": (b.confirmed_at or b.created_at).astimezone(tz), "code": b.code, "customer": b.customer_name,
+            "mobile": mobiles.get(b.customer_id, ""), "movie": titles.get(s.movie_id, ""),
+            "show_at": s.starts_at.astimezone(tz), "seats": seats.get(b.id, []),
+            "tickets_paise": b.tickets_paise, "discount_paise": b.discount_paise, "fee_paise": b.booking_fee_paise,
+            "gst_paise": b.gst_paise, "total_paise": b.total_paise,
+            "method": "UPI (direct)" if b.upi_ref else METHOD_NAMES.get(b.payment_method or "", b.payment_method or ""),
+            "reference": b.upi_ref or b.gateway_payment_id or "", "status": PAYMENT_STATUS[b.status],
+            "refund_paise": b.refund_paise if b.status != BookingStatus.confirmed else 0,
+            "refunded_at": b.refunded_at.astimezone(tz) if b.refunded_at else None,
+        })
+    return out
+
+
+def payments_excel(rows: list[dict], theatre_name: str, gstin: str | None, start: date, end: date) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Payments"
+    bold = Font(bold=True)
+    ws.append([f"{theatre_name} payments", f"{start:%d %b %Y} to {end:%d %b %Y}", f"GSTIN {gstin}" if gstin else ""])
+    ws["A1"].font = bold
+    ws.append(["By the day the payment was confirmed. Amounts in rupees."])
+    ws.append([])
+    header = ["Paid on", "Booking ID", "Customer", "Mobile", "Movie", "Show", "Seats", "No. of seats",
+              "Ticket sales", "Discount", "Booking fee", "GST on fee", "Total paid", "Paid by",
+              "UPI reference / Payment ID", "Status", "Refunded", "Refunded on"]
+    ws.append(header)
+    for c in ws[4]:
+        c.font = bold
+    money = ("tickets_paise", "discount_paise", "fee_paise", "gst_paise", "total_paise", "refund_paise")
+    for r in rows:
+        ws.append([
+            r["paid_at"].replace(tzinfo=None), r["code"], r["customer"], r["mobile"], r["movie"],
+            r["show_at"].replace(tzinfo=None), " ".join(r["seats"]), len(r["seats"]),
+            *[r[k] / 100 for k in money[:5]], r["method"], r["reference"], r["status"],
+            r["refund_paise"] / 100, r["refunded_at"].replace(tzinfo=None) if r["refunded_at"] else None,
+        ])
+        for col in (1, 6, 18):
+            ws.cell(ws.max_row, col).number_format = "dd-mmm-yyyy hh:mm"
+    if rows:
+        ws.append(["Total", "", "", "", "", "", "", sum(len(r["seats"]) for r in rows),
+                   *[sum(r[k] for r in rows) / 100 for k in money[:5]], "", "", "",
+                   sum(r["refund_paise"] for r in rows) / 100])
+        for c in ws[ws.max_row]:
+            c.font = bold
+    for col, w in zip("ABCDEFGHIJKLMNOPQR", (18, 11, 20, 12, 24, 18, 18, 8, 12, 10, 11, 10, 11, 13, 26, 14, 10, 18),
+                      strict=True):
+        ws.column_dimensions[col].width = w
+    ws.freeze_panes = "A5"
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

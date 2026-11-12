@@ -88,7 +88,8 @@ def search_bookings(
     term = q.strip()
     if term:
         digits = re.sub(r"\D", "", term)
-        conds = [Booking.code == term.upper(), Booking.customer_name.ilike(f"%{term}%")]
+        conds = [Booking.code == term.upper(), Booking.customer_name.ilike(f"%{term}%"),
+                 Booking.upi_ref == term, Booking.gateway_payment_id == term]
         if len(digits) >= 4:
             conds.append(Customer.mobile.like(f"%{digits[-10:]}%"))
         stmt = stmt.where(or_(*conds))
@@ -285,7 +286,8 @@ def refunds(
     term = q.strip()
     if term:
         digits = re.sub(r"\D", "", term)
-        conds = [Booking.code == term.upper(), Booking.customer_name.ilike(f"%{term}%")]
+        conds = [Booking.code == term.upper(), Booking.customer_name.ilike(f"%{term}%"),
+                 Booking.upi_ref == term, Booking.gateway_payment_id == term]
         if len(digits) >= 4:
             conds.append(Customer.mobile.like(f"%{digits[-10:]}%"))
         stmt = stmt.where(or_(*conds))

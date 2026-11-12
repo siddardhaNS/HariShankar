@@ -47,7 +47,7 @@ export default async function BookingsPage({ searchParams }: PageProps<"/booking
 
   return (
     <>
-      <PageHeader title="Bookings" subtitle="Find a booking by booking ID, name or mobile number" />
+      <PageHeader title="Bookings" subtitle="Find a booking by booking ID, name, mobile number or UPI reference" />
       {isOwner && <UpiSettings current={upi} />}
       <PaymentsToCheck items={queue} isOwner={isOwner} />
 
@@ -55,7 +55,7 @@ export default async function BookingsPage({ searchParams }: PageProps<"/booking
         <input
           name="q"
           defaultValue={q}
-          placeholder="Booking ID, name or mobile"
+          placeholder="Booking ID, name, mobile or UPI ref"
           aria-label="Search bookings"
           className="field max-w-md flex-1"
           autoFocus={!showId}

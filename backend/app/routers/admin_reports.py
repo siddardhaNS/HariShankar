@@ -69,3 +69,15 @@ def insights_excel(start: date | None = Query(default=None), end: date | None = 
     body = insights_svc.to_excel(data, theatre.name if theatre else "")
     return Response(body, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="insights-{s}-to-{e}.xlsx"'})
+
+
+@router.get("/reports/payments.xlsx")
+def payments_excel(start: date | None = Query(default=None), end: date | None = Query(default=None),
+                   user: StaffUser = Depends(owner_only), db: Session = Depends(get_db)):
+    """Every payment in the dates, one line per booking with its UPI reference, for GST filing."""
+    s, e = _range(db, user, start, end, 7)
+    theatre = db.get(Theatre, user.theatre_id)
+    rows = reports.payments(db, user.theatre_id, s, e)
+    body = reports.payments_excel(rows, theatre.name if theatre else "", theatre.gstin if theatre else None, s, e)
+    return Response(body, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="payments-{s}-to-{e}.xlsx"'})
