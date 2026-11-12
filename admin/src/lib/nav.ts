@@ -22,7 +22,6 @@ export const NAV: NavItem[] = [
   { href: "/insights", label: "Insights", roles: OWNER, blurb: "Who books, when they book and what fills the hall" },
   { href: "/reports", label: "Reports", roles: OWNER, blurb: "Daily collection, occupancy, refunds and GST" },
   { href: "/staff", label: "Staff", roles: OWNER, blurb: "Add staff, set roles, reset PINs, disable logins" },
-  { href: "/settings", label: "Settings", roles: ADMIN, blurb: "Close the app for maintenance and set the message customers see" },
 ];
 
 export function navFor(role: Role) {

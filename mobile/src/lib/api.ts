@@ -27,19 +27,6 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
 }
 
-// The server answers 503 { detail: { maintenance, message } } on customer routes
-// while the theatre has closed the app for maintenance
-let onMaintenance: ((message: string) => void) | null = null;
-
-export function setMaintenanceHandler(fn: ((message: string) => void) | null) {
-  onMaintenance = fn;
-}
-
-function maintenanceMessage(body: unknown): string | null {
-  const d = (body as { detail?: { maintenance?: unknown; message?: unknown } } | null)?.detail;
-  return d && typeof d === 'object' && d.maintenance === true ? String(d.message ?? '') : null;
-}
-
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -53,8 +40,6 @@ export class ApiError extends Error {
 function readError(body: unknown, status: number): string {
   const detail = (body as { detail?: unknown } | null)?.detail;
   if (typeof detail === 'string') return detail;
-  const closed = maintenanceMessage(body);
-  if (closed !== null) return closed || 'The app is down for maintenance';
   if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg).replace(/^Value error, /, '');
   return status >= 500 ? 'Something went wrong on our side. Please try again' : 'Something went wrong';
 }
@@ -86,10 +71,6 @@ export async function api<T>(
 
   const body = await res.json().catch(() => null);
   if (res.status === 401 && token) (init.as === 'staff' ? onStaffUnauthorized : onUnauthorized)?.();
-  if (res.status === 503) {
-    const closed = maintenanceMessage(body);
-    if (closed !== null) onMaintenance?.(closed);
-  }
   if (!res.ok) throw new ApiError(res.status, readError(body, res.status), body);
   return body as T;
 }

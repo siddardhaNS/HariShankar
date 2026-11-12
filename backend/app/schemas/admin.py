@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import BookingStatus, MovieStatus, ShowStatus
 
@@ -13,31 +13,19 @@ from app.models.enums import BookingStatus, MovieStatus, ShowStatus
 class LayoutRow(BaseModel):
     label: Annotated[str, Field(pattern=r"^[A-Z]{1,2}$")]
     class_name: Annotated[str, Field(min_length=1, max_length=40)]
-    seats: Annotated[int, Field(ge=1, le=60)]  # seat numbers 1..seats, missing ones included
+    seats: Annotated[int, Field(ge=1, le=60)]
     aisles_after: list[int] = []  # an empty column after these seat numbers
-    # No seat at these numbers (a pillar, a short row). The space stays empty
-    # and the other seats keep their numbers.
-    missing: list[int] = []
     indent: Annotated[int, Field(ge=0, le=20)] = 0  # empty columns before seat 1
     gap_after: bool = False  # a walkway (empty grid row) after this row
 
-    @field_validator("aisles_after", "missing")
+    @field_validator("aisles_after")
     @classmethod
-    def _numbers(cls, v: list[int]) -> list[int]:
+    def _aisles(cls, v: list[int]) -> list[int]:
         return sorted(set(v))
-
-    @model_validator(mode="after")
-    def _has_seats(self) -> "LayoutRow":
-        self.missing = [n for n in self.missing if 1 <= n <= self.seats]
-        if len(self.missing) >= self.seats:
-            raise ValueError(f"Row {self.label} has no seats left")
-        return self
 
 
 class LayoutIn(BaseModel):
     rows: Annotated[list[LayoutRow], Field(min_length=1, max_length=60)]
-    # Class name -> what its seats are like ("Cushioned pushback seats"), shown in the app
-    class_notes: dict[str, Annotated[str, Field(max_length=200)]] = {}
 
     @field_validator("rows")
     @classmethod
@@ -53,7 +41,6 @@ class LayoutOut(BaseModel):
     rows: list[LayoutRow]
     total_seats: int
     classes: list[str]
-    class_notes: dict[str, str] = {}
 
 
 # ---------- Movies ----------

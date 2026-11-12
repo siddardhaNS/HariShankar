@@ -41,7 +41,7 @@ export type ShowBrief = { id: string; starts_at: string; label: string; movie: M
 
 export type SeatState = 'free' | 'booked' | 'blocked';
 export type Seat = { id: string; row: string; number: number; r: number; c: number; class_id: string; state: SeatState };
-export type SeatClass = { id: string; name: string; price_paise: number | null; description?: string };
+export type SeatClass = { id: string; name: string; price_paise: number | null };
 
 export type SeatMap = {
   show: ShowBrief;

@@ -17,8 +17,8 @@ async function run<T>(fn: () => Promise<T>, paths: string[]): Promise<ActionResu
 
 // ---------- Hall layout ----------
 
-export async function saveLayout(rows: LayoutRow[], classNotes: Record<string, string>) {
-  return run(() => api<Layout>("/api/admin/layout", { method: "PUT", body: JSON.stringify({ rows, class_notes: classNotes }) }), [
+export async function saveLayout(rows: LayoutRow[]) {
+  return run(() => api<Layout>("/api/admin/layout", { method: "PUT", body: JSON.stringify({ rows }) }), [
     "/shows/layout",
     "/block-rows",
     "/",

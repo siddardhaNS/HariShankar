@@ -51,7 +51,6 @@ export default function PickSeats() {
 
   const priceOf = new Map(data.classes.map((k) => [k.id, k.price_paise ?? 0]));
   const classOf = new Map(data.classes.map((k) => [k.id, k.name]));
-  const noteOf = new Map(data.classes.map((k) => [k.id, k.description ?? '']));
   const total = selected.reduce((sum, sid) => sum + (priceOf.get(seatById.get(sid)!.class_id) ?? 0), 0);
 
   const toggle = (seat: Seat) => {
@@ -118,9 +117,6 @@ export default function PickSeats() {
               <T v="small" style={{ marginTop: 4 }}>
                 {classOf.get(view.seat.class_id)} · {rupees(priceOf.get(view.seat.class_id) ?? 0)} · {ordinal(view.rowNumber)} row from the screen
               </T>
-              {noteOf.get(view.seat.class_id) ? (
-                <T v="small" style={{ marginTop: 4 }}>{noteOf.get(view.seat.class_id)}</T>
-              ) : null}
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 {view.sweet && <Chip label="Best balance of size and comfort" />}
                 <Chip label={sideText(view.offset)} />
