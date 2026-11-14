@@ -44,25 +44,32 @@ def test_only_owners_manage_test_logins(client, db, owner, theatre):
 def test_start_up_migration_brings_the_database_to_head(monkeypatch):
     test_db = os.environ["TEST_DATABASE_URL"]
     alembic_env = {**os.environ, "ALEMBIC_DATABASE_URL": test_db}
-    subprocess.run(["alembic", "downgrade", "-1"], check=True, env=alembic_env)
-    assert "test_logins" not in inspect(engine).get_table_names()
+    # Back to the revision before test_logins (a fixed point, so later migrations don't matter)
+    subprocess.run(["alembic", "downgrade", "b7d4e2a9c1f3"], check=True, env=alembic_env)
+    try:
+        assert "test_logins" not in inspect(engine).get_table_names()
 
-    import app.db
+        import app.db
 
-    monkeypatch.setattr(app.db, "engine", engine)
-    monkeypatch.setenv("MIGRATE_ON_START", "1")
-    monkeypatch.setitem(migrate.status, "migrations", "not run")
-    migrate.run_on_start()
-    assert migrate.status["migrations"] == "ok"
-    assert "test_logins" in inspect(engine).get_table_names()
+        monkeypatch.setattr(app.db, "engine", engine)
+        monkeypatch.setenv("MIGRATE_ON_START", "1")
+        monkeypatch.setitem(migrate.status, "migrations", "not run")
+        migrate.run_on_start()
+        assert migrate.status["migrations"] == "ok"
+        assert "test_logins" in inspect(engine).get_table_names()
 
-    migrate.run_on_start()  # already at head: nothing to do
-    assert migrate.status["migrations"] == "ok"
+        migrate.run_on_start()  # already at head: nothing to do
+        assert migrate.status["migrations"] == "ok"
+    finally:
+        # Whatever happened, leave the database at head for the other tests
+        subprocess.run(["alembic", "upgrade", "head"], check=True, env=alembic_env)
 
 
-def test_start_up_migration_is_off_outside_vercel(monkeypatch):
-    monkeypatch.delenv("VERCEL", raising=False)
+def test_start_up_migration_runs_on_vercel_production_only(monkeypatch):
+    monkeypatch.delenv("VERCEL_ENV", raising=False)
     monkeypatch.delenv("MIGRATE_ON_START", raising=False)
     assert not migrate.should_run()
-    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("VERCEL_ENV", "preview")  # shares the live database
+    assert not migrate.should_run()
+    monkeypatch.setenv("VERCEL_ENV", "production")
     assert migrate.should_run()

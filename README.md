@@ -94,7 +94,7 @@ The website and API deploy as one Vercel project (`vercel.json`), with Postgres 
    | `PUSH_PROVIDER` | `off` until the app is built with EAS, then `expo` |
    | `OTP_TEST_LOGINS` | optional; test numbers and random 6-digit codes, as `9876543210:482913,9876543211:605127`. Easier: add them on the admin Staff page |
 
-3. **Create the tables and the first Owner login** from your computer, using Neon's direct (not pooled) connection string. After this first time, each deploy applies its own new migrations when the API starts (`app/migrate.py`); `/health` shows `"migrations": "ok"` or `"failed"` (details in the Vercel function log):
+3. **Create the tables and the first Owner login** from your computer, using Neon's direct (not pooled) connection string. After this first time, each deploy applies its own new migrations when the API starts (`app/migrate.py`, Production only: Preview deployments share the live database); `/health` shows `"migrations": "ok"` or `"failed"` (details in the Vercel function log):
 
    ```sh
    docker compose run --rm -e DATABASE_URL="<neon url>" api alembic upgrade head

@@ -24,7 +24,9 @@ status: dict[str, str] = {"migrations": "not run"}
 
 
 def should_run() -> bool:
-    return bool(os.environ.get("VERCEL")) or os.environ.get("MIGRATE_ON_START") == "1"
+    # Production only: Preview deployments (other branches) share the live database,
+    # and must not apply a branch's unmerged migrations to it
+    return os.environ.get("VERCEL_ENV") == "production" or os.environ.get("MIGRATE_ON_START") == "1"
 
 
 def upgrade_to_head() -> None:
