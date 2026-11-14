@@ -11,7 +11,7 @@ from app.db import get_db
 from app.models import Customer
 from app.schemas.app import AuthOut, CustomerOut, CustomerPatch, OtpRequestIn, OtpRequestOut, OtpVerifyIn, PushTokenIn
 from app.security import create_customer_token, decode_customer_token
-from app.services import otp, push
+from app.services import accounts, otp, push
 
 router = APIRouter(prefix="/api/app", tags=["app auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -27,7 +27,7 @@ def current_customer(
     except (jwt.PyJWTError, KeyError, ValueError):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Please log in again") from None
     customer = db.get(Customer, cid)
-    if customer is None:
+    if customer is None or customer.deleted_at is not None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Please log in again")
     return customer
 
@@ -65,6 +65,12 @@ def update_me(body: CustomerPatch, customer: Customer = Depends(current_customer
         setattr(customer, field, value)
     db.commit()
     return customer
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_me(customer: Customer = Depends(current_customer), db: Session = Depends(get_db)):
+    """The customer deletes their account (Profile, or the website's Delete account page)."""
+    accounts.delete_customer(db, customer)
 
 
 @router.post("/push-tokens", status_code=status.HTTP_204_NO_CONTENT)

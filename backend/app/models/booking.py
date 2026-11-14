@@ -23,6 +23,8 @@ class Customer(IdMixin, TimestampMixin, Base):
     )
     offers_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
     reminders_opt_in: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Set when the customer deletes their account; their details are wiped then (app/services/accounts.py)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Booking(IdMixin, TimestampMixin, TheatreScoped, Base):

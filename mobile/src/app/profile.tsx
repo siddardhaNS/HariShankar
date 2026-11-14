@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 
 import { Banner, Button, Card, Chip, Header, T } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -40,6 +40,31 @@ export default function Profile() {
       </View>
     );
   }
+
+  const deleteAccount = () => {
+    Alert.alert(
+      'Delete your account?',
+      'Your mobile number, name and choices are removed for good, and you are logged out. Past tickets stay with the theatre for its accounts, without your name. You can make a new account later with the same number.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api('/api/app/me', { method: 'DELETE' });
+            } catch (e) {
+              // An alert, as the error banner is out of sight at the top of the screen
+              Alert.alert("Can't delete yet", e instanceof ApiError ? e.message : "Couldn't delete your account. Try again");
+              return;
+            }
+            await signOut();
+            router.back();
+          },
+        },
+      ],
+    );
+  };
 
   const save = async (patch: Partial<Customer>) => {
     setErr(null);
@@ -137,6 +162,8 @@ export default function Profile() {
             router.back();
           }}
         />
+
+        <Button title="Delete account" kind="ghost" onPress={deleteAccount} />
       </ScrollView>
     </View>
   );

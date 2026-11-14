@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "hs_admin";
-const PUBLIC = ["/login", "/logout"];
+// Privacy policy and account deletion are for app users, linked from Google Play
+const PUBLIC = ["/login", "/logout", "/privacy", "/delete-account"];
 
 /**
  * Optimistic check only: no cookie -> login page. The real check (token
