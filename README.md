@@ -104,12 +104,14 @@ The website and API deploy as one Vercel project (`vercel.json`), with Postgres 
 4. **Deploy:** import the repository in Vercel, or run `npx vercel --prod`. Check `https://<your project>.vercel.app/health`. Keep migrations additive (new tables, or columns with defaults), since the code that needs them goes live in the same deploy.
 5. **Customer app:** rebuild it with `EXPO_PUBLIC_API_URL=https://<your project>.vercel.app`. Plain http is off (`usesCleartextTraffic` in `mobile/app.json`), so builds need the https address.
 
-**Google Play build.** Release builds are signed with the Play upload key when the computer has it: `mobile/plugins/withReleaseSigning.js` reads `HS_UPLOAD_STORE_FILE`, `HS_UPLOAD_KEY_ALIAS`, `HS_UPLOAD_STORE_PASSWORD` and `HS_UPLOAD_KEY_PASSWORD` from `~/.gradle/gradle.properties`, never from the repo. Without them release builds use the debug key (fine for a test APK, refused by Play). On Windows, build from a short path such as `C:\hs\mobile` to stay under the 260-character limit:
+**Google Play build.** Release builds are signed with the Play upload key when the computer has it: `mobile/plugins/withReleaseSigning.js` reads `HS_UPLOAD_STORE_FILE`, `HS_UPLOAD_KEY_ALIAS`, `HS_UPLOAD_STORE_PASSWORD` and `HS_UPLOAD_KEY_PASSWORD` from `~/.gradle/gradle.properties`, never from the repo. Without them release builds use the debug key (fine for a test APK, refused by Play). Build from the project folder (Windows long paths are on, and the Android SDK's ninja is 1.12.1, which handles them):
 
 ```sh
 cd mobile && CI=1 npx expo prebuild --platform android --clean --no-install   # after app.json or plugin changes
 cd android && ./gradlew bundleRelease     # app/build/outputs/bundle/release/app-release.aab for Play
 ```
+
+The release API address comes from the git-ignored `mobile/.env.production.local` (`EXPO_PUBLIC_API_URL=https://...`); `.env.local` stays on the local API for development. The upload key itself is in the git-ignored `mobile/credentials/`.
 
 Raise `expo.android.versionCode` in `mobile/app.json` for every upload. The app's public pages for the Play listing are `/privacy` and `/delete-account` on the website.
 
