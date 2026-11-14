@@ -102,7 +102,16 @@ The website and API deploy as one Vercel project (`vercel.json`), with Postgres 
    ```
 
 4. **Deploy:** import the repository in Vercel, or run `npx vercel --prod`. Check `https://<your project>.vercel.app/health`. Keep migrations additive (new tables, or columns with defaults), since the code that needs them goes live in the same deploy.
-5. **Customer app:** rebuild it with `EXPO_PUBLIC_API_URL=https://<your project>.vercel.app`. Once no build needs plain http, turn off `usesCleartextTraffic` in `mobile/app.json`.
+5. **Customer app:** rebuild it with `EXPO_PUBLIC_API_URL=https://<your project>.vercel.app`. Plain http is off (`usesCleartextTraffic` in `mobile/app.json`), so builds need the https address.
+
+**Google Play build.** Release builds are signed with the Play upload key when the computer has it: `mobile/plugins/withReleaseSigning.js` reads `HS_UPLOAD_STORE_FILE`, `HS_UPLOAD_KEY_ALIAS`, `HS_UPLOAD_STORE_PASSWORD` and `HS_UPLOAD_KEY_PASSWORD` from `~/.gradle/gradle.properties`, never from the repo. Without them release builds use the debug key (fine for a test APK, refused by Play). On Windows, build from a short path such as `C:\hs\mobile` to stay under the 260-character limit:
+
+```sh
+cd mobile && CI=1 npx expo prebuild --platform android --clean --no-install   # after app.json or plugin changes
+cd android && ./gradlew bundleRelease     # app/build/outputs/bundle/release/app-release.aab for Play
+```
+
+Raise `expo.android.versionCode` in `mobile/app.json` for every upload. The app's public pages for the Play listing are `/privacy` and `/delete-account` on the website.
 
 **Scheduled work:** Vercel calls `/api/cron/tick` once a day at about 9:30 AM India time, because the Hobby plan allows no more than that. Unpaid bookings hold no seats, so a day's delay in expiring them only leaves them showing as pending for longer. Once messages are switched on, confirmations and reminders need a faster schedule. Pro allows every minute: `"schedule": "* * * * *"` in `vercel.json`. The Hobby plan is for personal, non-commercial use, so move to Pro before the theatre sells tickets through it.
 

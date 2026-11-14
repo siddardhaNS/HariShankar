@@ -18,7 +18,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.harishankarpalace.app"
+      "package": "com.harishankarpalace.app",
+      "versionCode": 1
     },
     "web": {
       "output": "server",
@@ -51,11 +52,12 @@
           "defaultChannel": "default"
         }
       ],
+      "./plugins/withReleaseSigning",
       [
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": false
           }
         }
       ]
