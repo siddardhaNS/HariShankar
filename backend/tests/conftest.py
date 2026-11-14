@@ -37,7 +37,7 @@ def clean(migrated):
     with engine.begin() as c:
         c.execute(text(
             "TRUNCATE push_tokens, messages, campaigns, entries, ratings, promotions, otp_codes, audit_logs, booking_seats, bookings, seat_blocks, show_prices, shows, movies, "
-            "customers, seats, seat_classes, screens, staff_users, theatres CASCADE"
+            "test_logins, customers, seats, seat_classes, screens, staff_users, theatres CASCADE"
         ))
 
 

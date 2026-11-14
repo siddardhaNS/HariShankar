@@ -21,7 +21,7 @@ export const NAV: NavItem[] = [
   { href: "/messages", label: "Messages", roles: OWNER, blurb: "Promotional WhatsApp messages to opted-in customers" },
   { href: "/insights", label: "Insights", roles: OWNER, blurb: "Who books, when they book and what fills the hall" },
   { href: "/reports", label: "Reports", roles: OWNER, blurb: "Daily collection, occupancy, refunds and GST" },
-  { href: "/staff", label: "Staff", roles: OWNER, blurb: "Add staff, set roles, reset PINs, disable logins" },
+  { href: "/staff", label: "Staff", roles: OWNER, blurb: "Add staff, set roles, reset PINs, disable logins, app test logins" },
   { href: "/settings", label: "Settings", roles: ADMIN, blurb: "Close the app for maintenance and set the message customers see" },
 ];
 

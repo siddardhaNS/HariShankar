@@ -1,6 +1,7 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import migrate
 from app.config import get_settings
 from app.routers import (
     admin_auth,
@@ -12,6 +13,7 @@ from app.routers import (
     admin_settings,
     admin_shows,
     admin_staff,
+    admin_test_logins,
     app_auth,
     app_bookings,
     app_catalog,
@@ -23,6 +25,10 @@ from app.routers import (
 )
 
 settings = get_settings()
+
+# On Vercel, apply this deploy's database migrations before serving anything
+migrate.run_on_start()
+
 app = FastAPI(
     title="Hari Shankar Picture Palace API",
     version="0.2.0",
@@ -50,6 +56,7 @@ app.include_router(admin_promotions.router)
 app.include_router(admin_reports.router)
 app.include_router(admin_messages.router)
 app.include_router(admin_settings.router)
+app.include_router(admin_test_logins.router)
 
 # Customer app. During maintenance every route here answers 503 with the
 # message, except /api/app/status which the app checks to show it.
@@ -72,4 +79,4 @@ if settings.is_dev:  # test payments, never in production
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, **migrate.status}

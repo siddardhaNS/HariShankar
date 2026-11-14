@@ -20,6 +20,9 @@ export type LoginResponse = Me & { access_token: string; expires_in: number };
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
+/** A tester who can log in to the app with a fixed code until SMS is set up */
+export type TestLogin = { id: string; name: string; mobile: string; code: string; created_at: string };
+
 export type LayoutRow = { label: string; class_name: string; seats: number; aisles_after: number[]; missing?: number[]; indent: number; gap_after?: boolean };
 export type Layout = { screen_id: string; rows: LayoutRow[]; total_seats: number; classes: string[]; class_notes?: Record<string, string> };
 

@@ -1,5 +1,5 @@
 from app.models.base import Base
-from app.models.booking import Booking, BookingSeat, Customer, Entry, OtpCode, SeatBlock
+from app.models.booking import Booking, BookingSeat, Customer, Entry, OtpCode, SeatBlock, TestLogin
 from app.models.catalog import Movie, Show, ShowPrice
 from app.models.message import Campaign, Message, PushToken
 from app.models.promotion import Promotion
@@ -9,5 +9,5 @@ from app.models.theatre import Screen, Seat, SeatClass, Theatre
 
 __all__ = [
     "AuditLog", "Base", "Booking", "BookingSeat", "Campaign", "Customer", "Entry", "Message", "Movie", "OtpCode", "Promotion", "PushToken", "Rating", "Screen",
-    "Seat", "SeatBlock", "SeatClass", "Show", "ShowPrice", "StaffUser", "Theatre",
+    "Seat", "SeatBlock", "SeatClass", "Show", "ShowPrice", "StaffUser", "TestLogin", "Theatre",
 ]

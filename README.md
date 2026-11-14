@@ -80,7 +80,7 @@ docker compose run --rm api alembic upgrade head
 
 The website and API deploy as one Vercel project (`vercel.json`), with Postgres from Neon.
 
-**Customer login:** no SMS provider is built yet, so only the numbers in `OTP_TEST_LOGINS` can log in to the app, each with its own fixed code. Everyone else is told login isn't open yet. Add a provider in `app/services/otp.py` before opening it to the public. The admin website and staff PIN logins don't need one.
+**Customer login:** no SMS provider is built yet, so only test numbers can log in to the app, each with its own fixed code. An Owner adds and removes them under **App test logins** on the admin Staff page (or in the `OTP_TEST_LOGINS` setting). Everyone else is told login isn't open yet. Add a provider in `app/services/otp.py` before opening it to the public. The admin website and staff PIN logins don't need one.
 
 1. **Database:** add Neon from the Vercel Marketplace, in the Singapore region (the closest to India, and it can't be changed later). Connect it to the project, so `DATABASE_URL` is set.
 2. **Environment variables** in the Vercel project:
@@ -92,16 +92,16 @@ The website and API deploy as one Vercel project (`vercel.json`), with Postgres 
    | `CRON_SECRET` | another long random string, letters and numbers only |
    | `WHATSAPP_PROVIDER` | `off` until a provider is set up |
    | `PUSH_PROVIDER` | `off` until the app is built with EAS, then `expo` |
-   | `OTP_TEST_LOGINS` | test numbers and random 6-digit codes, as `9876543210:482913,9876543211:605127` |
+   | `OTP_TEST_LOGINS` | optional; test numbers and random 6-digit codes, as `9876543210:482913,9876543211:605127`. Easier: add them on the admin Staff page |
 
-3. **Create the tables and the first Owner login** from your computer, using Neon's direct (not pooled) connection string. Run the first line again whenever a new migration is added:
+3. **Create the tables and the first Owner login** from your computer, using Neon's direct (not pooled) connection string. After this first time, each deploy applies its own new migrations when the API starts (`app/migrate.py`); `/health` shows `"migrations": "ok"` or `"failed"` (details in the Vercel function log):
 
    ```sh
    docker compose run --rm -e DATABASE_URL="<neon url>" api alembic upgrade head
    docker compose run --rm -e DATABASE_URL="<neon url>" -e SEED_OWNER_MOBILE=<owner's number> -e SEED_OWNER_PIN=<temporary PIN> api python -m app.seed
    ```
 
-4. **Deploy:** import the repository in Vercel, or run `npx vercel --prod`. Check `https://<your project>.vercel.app/health`.
+4. **Deploy:** import the repository in Vercel, or run `npx vercel --prod`. Check `https://<your project>.vercel.app/health`. Keep migrations additive (new tables, or columns with defaults), since the code that needs them goes live in the same deploy.
 5. **Customer app:** rebuild it with `EXPO_PUBLIC_API_URL=https://<your project>.vercel.app`. Once no build needs plain http, turn off `usesCleartextTraffic` in `mobile/app.json`.
 
 **Scheduled work:** Vercel calls `/api/cron/tick` once a day at about 9:30 AM India time, because the Hobby plan allows no more than that. Unpaid bookings hold no seats, so a day's delay in expiring them only leaves them showing as pending for longer. Once messages are switched on, confirmations and reminders need a faster schedule. Pro allows every minute: `"schedule": "* * * * *"` in `vercel.json`. The Hobby plan is for personal, non-commercial use, so move to Pro before the theatre sells tickets through it.

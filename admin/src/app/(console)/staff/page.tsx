@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Forbidden, PageHeader } from "@/components/PageHeader";
 import { api, getMe } from "@/lib/api";
-import { ROLE_HINT, ROLE_LABEL, type Staff } from "@/lib/types";
+import { ROLE_HINT, ROLE_LABEL, type Staff, type TestLogin } from "@/lib/types";
 import { AddStaffForm, StaffRowActions } from "./StaffForms";
+import { TestLogins } from "./TestLogins";
 
 export const metadata: Metadata = { title: "Staff" };
 
@@ -17,7 +18,10 @@ export default async function StaffPage() {
   const me = await getMe();
   if (me.user.role !== "owner" && me.user.role !== "super_admin") return <Forbidden />;
 
-  const staff = await api<Staff[]>("/api/admin/staff");
+  const [staff, testLogins] = await Promise.all([
+    api<Staff[]>("/api/admin/staff"),
+    api<TestLogin[]>("/api/admin/test-logins"),
+  ]);
 
   return (
     <>
@@ -56,6 +60,8 @@ export default async function StaffPage() {
 
         <AddStaffForm />
       </div>
+
+      <TestLogins logins={testLogins} />
     </>
   );
 }

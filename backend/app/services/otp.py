@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import OtpCode
+from app.models import OtpCode, TestLogin
 from app.security import hash_pin, verify_pin
 
 log = logging.getLogger("otp")
@@ -43,7 +43,8 @@ def get_sender() -> OtpSender:
 def request_code(db: Session, mobile: str, sender: OtpSender | None = None) -> None:
     s = get_settings()
     now = datetime.now(UTC)
-    test_code = s.otp_test_codes.get(mobile)
+    # Testers: numbers set in OTP_TEST_LOGINS, or added by an owner on the admin Staff page
+    test_code = s.otp_test_codes.get(mobile) or db.scalar(select(TestLogin.code).where(TestLogin.mobile == mobile))
     if test_code is None and sender is None:
         try:
             sender = get_sender()

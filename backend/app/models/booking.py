@@ -125,3 +125,17 @@ class Entry(IdMixin, Base):
     offline: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # phone's time of the scan
     problem: Mapped[str | None] = mapped_column(String(80))  # e.g. more let in than paid for (two offline phones)
+
+
+class TestLogin(IdMixin, Base):
+    """A tester's number that can log in to the app with a fixed code, until an
+    SMS provider is set up. Owners add and remove these on the admin Staff page.
+    The code is kept readable so the owner can pass it on; it only works for
+    this one number, and the whole list is emptied before launch."""
+
+    __tablename__ = "test_logins"
+
+    mobile: Mapped[str] = mapped_column(String(10), unique=True)
+    code: Mapped[str] = mapped_column(String(6))
+    name: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

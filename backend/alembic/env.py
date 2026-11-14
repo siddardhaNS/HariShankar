@@ -21,6 +21,15 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    # The API's start-up migration (app/migrate.py) hands over its own connection,
+    # already inside a transaction that holds the migration lock
+    shared = context.config.attributes.get("connection")
+    if shared is not None:
+        context.configure(connection=shared, target_metadata=target_metadata, compare_type=True)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     engine = create_engine(_url())
     with engine.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
