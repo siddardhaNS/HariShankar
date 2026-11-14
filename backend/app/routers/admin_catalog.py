@@ -41,21 +41,28 @@ def layout_rows(db: Session, screen: Screen) -> list[LayoutRow]:
     ordered = sorted(rows.items())
     for i, (grid_row, rs) in enumerate(ordered):
         rs.sort(key=lambda s: s.number)
-        aisles = [a.number for a, b in zip(rs, rs[1:], strict=False) if b.grid_col - a.grid_col > 1]
+        numbers = {s.number for s in rs}
+        missing = [n for n in range(1, rs[-1].number) if n not in numbers]
+        # Every seat number takes a column, missing or not; anything wider is an aisle
+        aisles = [a.number for a, b in zip(rs, rs[1:], strict=False)
+                  if b.grid_col - a.grid_col > b.number - a.number]
         gap = False
         if i + 1 < len(ordered):
             nxt = ordered[i + 1][1][0]
             class_gap = 1 if nxt.seat_class_id != rs[0].seat_class_id else 0
             gap = nxt.grid_row - grid_row - 1 > class_gap
-        out.append(LayoutRow(label=rs[0].row_label, class_name=names[rs[0].seat_class_id], seats=len(rs),
-                             aisles_after=aisles, indent=rs[0].grid_col - 1, gap_after=gap))
+        out.append(LayoutRow(label=rs[0].row_label, class_name=names[rs[0].seat_class_id], seats=rs[-1].number,
+                             aisles_after=aisles, missing=missing,
+                             indent=max(rs[0].grid_col - rs[0].number, 0), gap_after=gap))
     return out
 
 
 def _layout_out(db: Session, screen: Screen) -> LayoutOut:
     rows = layout_rows(db, screen)
     classes = list(dict.fromkeys(r.class_name for r in rows))
-    return LayoutOut(screen_id=screen.id, rows=rows, total_seats=sum(r.seats for r in rows), classes=classes)
+    notes = dict(db.execute(select(SeatClass.name, SeatClass.description).where(SeatClass.screen_id == screen.id)).all())
+    return LayoutOut(screen_id=screen.id, rows=rows, total_seats=sum(r.seats - len(r.missing) for r in rows),
+                     classes=classes, class_notes={c: notes.get(c) or "" for c in classes})
 
 
 @router.get("/layout", response_model=LayoutOut)
@@ -79,6 +86,8 @@ def save_layout(body: LayoutIn, user: StaffUser = Depends(manage), db: Session =
             classes[name] = SeatClass(theatre_id=screen.theatre_id, screen_id=screen.id, name=name)
             db.add(classes[name])
         classes[name].sort_order = i
+        if name in body.class_notes:
+            classes[name].description = body.class_notes[name].strip()
     db.flush()
 
     existing = {(s.row_label, s.number): s for s in db.scalars(select(Seat).where(Seat.screen_id == screen.id))}
@@ -92,6 +101,9 @@ def save_layout(body: LayoutIn, user: StaffUser = Depends(manage), db: Session =
         prev_class = cname
         col = row.indent + 1
         for n in range(1, row.seats + 1):
+            if n in row.missing:  # the space stays empty
+                col += 2 if n in row.aisles_after else 1
+                continue
             key = (row.label, n)
             wanted.add(key)
             seat = existing.get(key)

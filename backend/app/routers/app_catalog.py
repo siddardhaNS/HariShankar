@@ -196,7 +196,8 @@ def seat_map(show_id: uuid.UUID, db: Session = Depends(get_db)):
     s = get_settings()
     return SeatMapOut(
         show=show_brief(db, show),
-        classes=[SeatClassOut(id=c.id, name=c.name, price_paise=prices.get(c.id)) for c in classes],
+        classes=[SeatClassOut(id=c.id, name=c.name, price_paise=prices.get(c.id),
+                              description=c.description) for c in classes],
         seats=[
             SeatOut(id=x.id, row=x.row_label, number=x.number, r=x.grid_row, c=x.grid_col,
                     class_id=x.seat_class_id, state=states[x.id])  # type: ignore[arg-type]

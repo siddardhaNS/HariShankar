@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
@@ -9,12 +9,14 @@ from app.routers import (
     admin_messages,
     admin_promotions,
     admin_reports,
+    admin_settings,
     admin_shows,
     admin_staff,
     app_auth,
     app_bookings,
     app_catalog,
     app_promotions,
+    app_status,
     cron,
     dev_payments,
     gate,
@@ -47,12 +49,16 @@ app.include_router(admin_bookings.router)
 app.include_router(admin_promotions.router)
 app.include_router(admin_reports.router)
 app.include_router(admin_messages.router)
+app.include_router(admin_settings.router)
 
-# Customer app
-app.include_router(app_auth.router)
-app.include_router(app_catalog.router)
-app.include_router(app_bookings.router)
-app.include_router(app_promotions.router)
+# Customer app. During maintenance every route here answers 503 with the
+# message, except /api/app/status which the app checks to show it.
+app.include_router(app_status.router)
+closed_in_maintenance = [Depends(app_status.customer_app_open)]
+app.include_router(app_auth.router, dependencies=closed_in_maintenance)
+app.include_router(app_catalog.router, dependencies=closed_in_maintenance)
+app.include_router(app_bookings.router, dependencies=closed_in_maintenance)
+app.include_router(app_promotions.router, dependencies=closed_in_maintenance)
 
 # Gate staff (scanner in the Android app)
 app.include_router(gate.router)

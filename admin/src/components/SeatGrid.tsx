@@ -64,13 +64,17 @@ export function SeatGrid({ seats, classes, selected, onToggle, onRow, pickBooked
                   if (!s) return <span key={i} className="h-7 w-7" />;
                   const sel = selected?.has(s.id);
                   const title =
-                    s.state === "booked"
+                    s.state === "none"
+                      ? `${s.row}${s.number} · No seat here${onToggle ? ". Click to put it back" : ""}`
+                      : s.state === "booked"
                       ? `${s.row}${s.number} · ${s.booking_code} · ${s.booked_by}`
                       : s.state === "blocked"
                         ? `${s.row}${s.number} · Blocked: ${s.block_reason}${s.block_all_shows ? " (all upcoming shows)" : ""}`
                         : `${s.row}${s.number}`;
                   const style =
-                    s.state === "booked"
+                    s.state === "none"
+                      ? "border-dashed border-[#d8dae6] bg-transparent text-[#c9ccdc]"
+                      : s.state === "booked"
                       ? sel
                         ? "bg-brand border-brand text-white"
                         : "bg-[#c9ccdc] border-[#c9ccdc] text-white"

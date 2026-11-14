@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +26,15 @@ class Theatre(IdMixin, TimestampMixin, Base):
     # Direct UPI payments go to this UPI ID until a payment gateway is chosen
     upi_id: Mapped[str | None] = mapped_column(String(60))
     upi_name: Mapped[str | None] = mapped_column(String(60))
+    # Maintenance: the customer app shows maintenance_message instead of working.
+    # Gate staff carry on scanning. Switching it needs the maintenance password.
+    maintenance_on: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    maintenance_message: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    maintenance_password_hash: Mapped[str | None] = mapped_column(String(100))
+    maintenance_failed_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    maintenance_locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintenance_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintenance_changed_by: Mapped[str | None] = mapped_column(String(120))
 
 
 class Screen(IdMixin, TimestampMixin, TheatreScoped, Base):
@@ -42,6 +52,8 @@ class SeatClass(IdMixin, TheatreScoped, Base):
     screen_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("screens.id"), index=True)
     name: Mapped[str] = mapped_column(String(40))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # What the seats are like (cushioned, pushback...), shown to customers
+    description: Mapped[str] = mapped_column(String(200), default="", server_default="")
 
 
 class Seat(IdMixin, TheatreScoped, Base):

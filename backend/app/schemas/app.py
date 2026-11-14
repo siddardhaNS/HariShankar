@@ -118,6 +118,7 @@ class SeatClassOut(BaseModel):
     id: uuid.UUID
     name: str
     price_paise: int | None
+    description: str = ""
 
 
 class SeatOut(BaseModel):
